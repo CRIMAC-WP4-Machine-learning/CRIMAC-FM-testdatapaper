@@ -9,9 +9,10 @@ df = pd.read_csv('DataSets.csv')
 testdata = df[(df['pulsetype'] == 'FM') &
               (df['dataset'].str[0] == 'T')]
 
+testdata.to_csv('testdata.csv')
+
 # Call whoami and capture the output
 user = subprocess.run(['whoami'], capture_output=True, text=True).stdout.strip()
-
 source = '/data/crimac/'
 dest = '/mnt/c/DATAscratch/to_NR'
 
