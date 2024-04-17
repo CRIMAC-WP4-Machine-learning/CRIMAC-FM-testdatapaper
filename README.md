@@ -27,14 +27,17 @@ https://github.com/CRIMAC-WP4-Machine-learning/CRIMAC-KoronaScript
 ### Data splitting
 Code to split data (if necessary).
 
-### Convert raw data to pulse compressed data
-Code to convert raw data to pulse compressed data in netcdf format.
+### raw2.pc.py - Convert raw data to pulse compressed data
+Script to convert raw data to pulse compressed data in netcdf format.
 
-TODO: Agree on data format. We propose to use the variable names from Andersen et al. Change Korona to write thi out.
+The script reads the raw data for each test data at `ACOUSTIC/EK80/EK80_RAWDATA`, run the KoronaModule and convert to pulsecompressed data. The output is saved to `ACOUSTIC/GRIDDED` as net cdf files. A figure is generated from the netcdf file and placed in the same folder.
 
-### Tracking using Korona
+TODO: Agree on data format. We propose to use the variable names from Andersen et al. Change Korona to write this out.
 
-Code to track using Korona and store the results in a netcdf file.
+### raw2tracks.py - Tracking using Korona
+
+The script reads the raw data for each test data set at `ACOUSTIC/EK80/EK80_RAWDATA`, the output is stored under `ACOUSTIC/LSSS/KORONA`.
+
 
 ### LSSS Manual tracking
 
