@@ -13,6 +13,14 @@ The `get_data.py` downloads the data from the central IMR data repository. Will 
 
 The `check_data.py` parses key diretories and count files by file extension per standard directory.
 
+## Libraries 
+Read LSSS output:
+https://github.com/CRIMAC-WP4-Machine-learning/lssstools
+
+Run Korona through Python:
+https://github.com/CRIMAC-WP4-Machine-learning/CRIMAC-KoronaScript
+
+
 
 ## Script for test data processing
 
