@@ -16,4 +16,35 @@ The `check_data.py` parses key diretories and count files by file extension per 
 
 ## Script for test data processing
 
+### Data splitting
+Code to split data (if necessary).
+
+### Convert raw data to pulse compressed data
+Code to convert raw data to pulse compressed data in netcdf format.
+
+TODO: Agree on data format. We propose to use the variable names from Andersen et al. Change Korona to write thi out.
+
+### Tracking using Korona
+
+Code to track using Korona and store the results in a netcdf file.
+
+### LSSS Manual tracking
+
+Use LSSS for manual tracking. 
+
+TODO: Read results and merge with the Korona tracking results. Store in Netcdf.
+
+
+### Image based tracking
+
+Use Ingrids code to track samples belonging to same target across channels. 
+
+
+### Estimate TS(f)
+
+Based on the pulsecompresse data and the track definitions, estiamte TS(f) per target across all channels.
+
+
+
+
 
