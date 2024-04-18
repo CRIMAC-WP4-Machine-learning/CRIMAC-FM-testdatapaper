@@ -4,10 +4,10 @@ import KoronaScript as ks
 import os
 import xarray as xr
 import matplotlib.pyplot as plt
-import numpy as np
 import glob
 import pandas as pd
-
+from matplotlib.colors import LogNorm
+from netCDF4 import Dataset
 
 """
 
@@ -32,20 +32,35 @@ def raw2pc(inputdir, outputdir):
                              DeltaFrequency = "1",
                              ChannelGroupOutputType = "PULSE_COMPRESSION"))
     ksi.write()
-    #ksi.run(src=inputdir, dst=outputdir) # Begrening på kjernar
+    ksi.run(src=inputdir, dst=outputdir) # Begrening på kjernar
     # Remove temporary korona files
     kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.*')]
 
 
 def pc2png(outputdir):
     # List NC files
-    ncdir = os.path.join(outputdir, 'pc', '*.nc')
-    ncfiles = glob.glob(ncdir)
+    ncdir = os.path.join(outputdir, 'pc')
+    ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
     if len(ncfiles) > 0:
-        # Open xarray dataset
-        xa = xr.open_mfdataset(ncfiles)
-        print(xa)
-
+        # Assume that the group from the firs data set is similar across all nc files
+        nc_dataset = Dataset(ncfiles[0], "r")
+        grp = list(nc_dataset.groups.keys())
+        #data = [xr.open_mfdataset(ncdir, engine='netcdf4', group=_grp)
+        #        for _grp in grp if not _grp == 'Environment']
+        data = [xr.open_dataset(ncfiles[0], engine='netcdf4', group=_grp)
+                for _grp in grp if not _grp == 'Environment']
+        
+        for _data in data:
+            # Mean of pulsecompressed data across quadrants
+            y_pc_n = (_data['pulse_compressed_re'] + _data[
+                'pulse_compressed_im']*1j).mean(dim="sector")
+            y_pc_na =  abs(y_pc_n).T # Absolute value of y_pc_n
+            # Plot the data to file
+            y_pc_na.plot.imshow(norm=LogNorm())
+            _f =  os.path.join(ncdir, _data.attrs[
+                'channel_id'].replace(" ", "_")+'.png')
+            plt.savefig(_f)
+            plt.close()
 
 # Read metadata & env variables
 df = pd.read_csv('testdata.csv')
@@ -65,4 +80,7 @@ for _dataset in df['dataset']:
         print(inputdir)
         print(outputdir)
         #raw2pc(inputdir, outputdir)
-        pc2png(outputdir)
+        try:
+            pc2png(outputdir)
+        except:
+            print('failed')
