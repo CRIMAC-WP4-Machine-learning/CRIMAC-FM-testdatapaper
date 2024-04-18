@@ -5,12 +5,14 @@ import os
 
 
 def listfilesbytype(d, ft):
-    files = os.listdir(d)
-    for _ft in ft:
-        fti = [_files for _files in files if os.path.splitext(
-            _files)[1] == _ft]
-        print('Filetype: '+_ft+' -> '+str(len(fti))+' files')
-
+    if os.path.exists(d):
+        files = os.listdir(d)
+        for _ft in ft:
+            fti = [_files for _files in files if os.path.splitext(
+                _files)[1] == _ft]
+            print('Filetype: '+_ft+' -> '+str(len(fti))+' files')
+    else:
+        print(d+' does not exist.')    
 
 # Read metadata & env variables
 df = pd.read_csv('testdata.csv')
@@ -40,5 +42,9 @@ for _dataset in df['dataset']:
         work = os.path.join(data_path, 'ACOUSTIC', 'LSSS', 'WORK')
         print(work)
         work_ft = ['.work', '.snap', '.*']
-        listfilesbytype(work, work_ft)
+        #listfilesbytype(work, work_ft)
 
+        pc = os.path.join(data_path, 'ACOUSTIC', 'GRIDDED', 'pc')
+        print(pc)
+        pc_ft = ['.nc', '.*']
+        listfilesbytype(pc, pc_ft)

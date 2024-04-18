@@ -5,10 +5,7 @@ import os
 import xarray as xr
 import matplotlib.pyplot as plt
 import numpy as np
-import sys
-from netCDF4 import Dataset
 import glob
-import json
 import pandas as pd
 
 
@@ -19,6 +16,7 @@ the results as an netcdf. the NetCDF file is read and the pulse compressed data 
 
 """
 
+
 def raw2pc(inputdir, outputdir):
     # Instanitate the class
     ksi = ks.KoronaScript()
@@ -26,7 +24,7 @@ def raw2pc(inputdir, outputdir):
     # Add the pulsecompression module and write to nc
     ksi.add(ksm.NetcdfWriter(Active = "true",
                              DirName = "pc",
-                             MainFrequency = "38",
+                             MainFrequency = "200",
                              WriterType = "CHANNEL_GROUPS",
                              GriddedOutputType = "PULSE_COMPRESSION",
                              WriteAngels = "true",
@@ -34,12 +32,15 @@ def raw2pc(inputdir, outputdir):
                              DeltaFrequency = "1",
                              ChannelGroupOutputType = "PULSE_COMPRESSION"))
     ksi.write()
-    ksi.run(src=inputdir, dst=outputdir) # Begrening på kjernar
+    #ksi.run(src=inputdir, dst=outputdir) # Begrening på kjernar
+    # Remove temporary korona files
+    kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.*')]
 
 
 def pc2png(outputdir):
     # List NC files
-    ncfiles = glob.glob(figdir+'/*.nc')
+    ncdir = os.path.join(outputdir, 'pc', '*.nc')
+    ncfiles = glob.glob(ncdir)
     if len(ncfiles) > 0:
         # Open xarray dataset
         xa = xr.open_mfdataset(ncfiles)
