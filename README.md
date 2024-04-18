@@ -9,7 +9,9 @@ Use `crimac = os.getenv('CRIMAC')` to access the path variable in python.
 
 The file `DataSets.csv` contain the list of test data sets (subset of the `Data_sets.csv` list).
 
-The `get_data.py` downloads the data from the central IMR data repository. Will only work inside IMRs filre wall.
+The `get_data.py` moves the data from crimac (backed up) to crimac-scratch/CRIMAC-FM-testdata (with S3 access). Must be run on one of IMR servers. 
+
+The `get_data_S3.py` downloads the data from IMR S3 server.
 
 The `check_data.py` parses key diretories and count files by file extension per standard directory.
 
@@ -49,15 +51,16 @@ TODO: Need case specific parateters from metadata
 
 Use LSSS for manual tracking. 
 
-TODO: Read results and merge with the Korona tracking results. Store in Netcdf.
+TODO: Read results and merge with the Korona tracking results. Store in Netcdf. Where to store the code for reading?
 
 
 ### Image based tracking
 
 Use Ingrids code to track samples belonging to same target across channels. 
 
+TODO: Write annotation data set for single targets, similar to annotation data.
 
-### Estimate TS(f)
+### pc2tsf - Estimate TS(f)
 
 Based on the pulsecompresse data and the track definitions, estiamte TS(f) per target across all channels.
 
