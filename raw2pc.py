@@ -53,7 +53,7 @@ def pc2png(outputdir):
         #        for _grp in grp if not _grp == 'Environment']
         data = [xr.open_dataset(ncfiles[0], engine='netcdf4', group=_grp)
                 for _grp in grp if not _grp == 'Environment']
-        '''
+        
         for _data in data:
             # Mean of pulsecompressed data across quadrants
             y_pc_n = (_data['pulse_compressed_re'] + _data[
@@ -65,7 +65,7 @@ def pc2png(outputdir):
                 'channel_id'].replace(" ", "_")+'.png')
             plt.savefig(_f)
             plt.close()
-        '''
+        
 # Read metadata & env variables
 df = pd.read_csv('testdata.csv')
 crimac = os.getenv('CRIMACSCRATCH')
