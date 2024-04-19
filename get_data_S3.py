@@ -44,6 +44,8 @@ def boto3download(host, access_key, secret_key, bucketname, s3folder, savefolder
         directory, filename = os.path.split(path)
         if filename[0] == '~':
             pbar.set_description(f"Tilde in file name; skipping {path}")
+        elif os.path.exists(path):
+            pbar.set_description(f"File exist; skipping {path}")
         else: 
             pbar.set_description(f"Downloading {path}")
             bucket.download_file(my_bucket_object.key, path)
