@@ -40,16 +40,20 @@ def raw2pc(inputdir, outputdir):
 def pc2png(outputdir):
     # List NC files
     ncdir = os.path.join(outputdir, 'pc')
+    print(ncdir)
     ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
+    print(ncfiles)
     if len(ncfiles) > 0:
         # Assume that the group from the firs data set is similar across all nc files
         nc_dataset = Dataset(ncfiles[0], "r")
         grp = list(nc_dataset.groups.keys())
+
+        # I can't get open_mfdataset to work. anyone?
         #data = [xr.open_mfdataset(ncdir, engine='netcdf4', group=_grp)
         #        for _grp in grp if not _grp == 'Environment']
         data = [xr.open_dataset(ncfiles[0], engine='netcdf4', group=_grp)
                 for _grp in grp if not _grp == 'Environment']
-        
+        '''
         for _data in data:
             # Mean of pulsecompressed data across quadrants
             y_pc_n = (_data['pulse_compressed_re'] + _data[
@@ -61,26 +65,23 @@ def pc2png(outputdir):
                 'channel_id'].replace(" ", "_")+'.png')
             plt.savefig(_f)
             plt.close()
-
+        '''
 # Read metadata & env variables
 df = pd.read_csv('testdata.csv')
-crimac = os.getenv('CRIMAC')
+crimac = os.getenv('CRIMACSCRATCH')
 
 # Print the current test data sets
 for _dataset in df['dataset']:
     print(_dataset)
-    inputdir = os.path.join(crimac, _dataset[1:5],
+    inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                             _dataset, 'ACOUSTIC',
                             'EK80', 'EK80_RAWDATA')
-    outputdir = os.path.join(crimac, _dataset[1:5],
+    outputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                              _dataset, 'ACOUSTIC',
                              'GRIDDED')
 
     if os.path.exists(inputdir):
         print(inputdir)
         print(outputdir)
-        #raw2pc(inputdir, outputdir)
-        try:
-            pc2png(outputdir)
-        except:
-            print('failed')
+        raw2pc(inputdir, outputdir)
+        pc2png(outputdir)
