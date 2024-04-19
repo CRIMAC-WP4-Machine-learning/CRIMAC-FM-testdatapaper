@@ -40,8 +40,13 @@ def boto3download(host, access_key, secret_key, bucketname, s3folder, savefolder
         if not os.path.exists(dirname):
             os.makedirs(dirname)
         # print(path)
-        pbar.set_description(f"Downloading {path}")
-        bucket.download_file(my_bucket_object.key, path)
+        # Skip files that have ~ in them (stupid windows stuff)
+        directory, filename = os.path.split(path)
+        if filename[0] == '~':
+            pbar.set_description(f"Tilde in file name; skipping {path}")
+        else: 
+            pbar.set_description(f"Downloading {path}")
+            bucket.download_file(my_bucket_object.key, path)
 
 
 def show_folders(host, access_key, secret_key, bucketname, s3folder):
