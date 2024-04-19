@@ -99,7 +99,7 @@ secret_key = "9!%L*h7Q"  # Password
 bucketname = 'crimac-scratch'  # s3 bucket
 
 s3folder = 'gpfs0-crimac-scratch/CRIMAC-FM-testdata/'  # all s3  crimac folders at HI start with gpfs0-crimac-scratch/
-savefolder = os.path.join(os.getenv('CRIMACSCRATCH'), 'CRIMAC-FM-testdata')
+savefolder = os.getenv('CRIMACSCRATCH')
 
 # for s3folder in data:
 show_folders(host, access_key, secret_key, bucketname, s3folder)
