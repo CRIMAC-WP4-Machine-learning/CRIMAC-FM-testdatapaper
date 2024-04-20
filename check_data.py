@@ -16,7 +16,7 @@ def listfilesbytype(d, ft):
 
 # Read metadata & env variables
 df = pd.read_csv('testdata.csv')
-crimac = os.getenv('CRIMAC')
+crimac = os.getenv('CRIMACSCRATCH')
 
 # Print the current test data sets
 for _dataset in df['dataset']:
@@ -24,7 +24,7 @@ for _dataset in df['dataset']:
 
 # Check if data sets are aviable
 for _dataset in df['dataset']:
-    data_path = os.path.join(crimac, _dataset[1:5], _dataset)
+    data_path = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5], _dataset)
     if os.path.exists(data_path):
         print(data_path + ' exists')
     else:

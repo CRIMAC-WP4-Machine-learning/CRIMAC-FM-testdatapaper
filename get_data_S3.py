@@ -40,8 +40,15 @@ def boto3download(host, access_key, secret_key, bucketname, s3folder, savefolder
         if not os.path.exists(dirname):
             os.makedirs(dirname)
         # print(path)
-        pbar.set_description(f"Downloading {path}")
-        bucket.download_file(my_bucket_object.key, path)
+        # Skip files that have ~ in them (stupid windows stuff)
+        directory, filename = os.path.split(path)
+        if filename[0] == '~':
+            pbar.set_description(f"Tilde in file name; skipping {path}")
+        elif os.path.exists(path):
+            pbar.set_description(f"File exist; skipping {path}")
+        else: 
+            pbar.set_description(f"Downloading {path}")
+            bucket.download_file(my_bucket_object.key, path)
 
 
 def show_folders(host, access_key, secret_key, bucketname, s3folder):
@@ -99,7 +106,7 @@ secret_key = "9!%L*h7Q"  # Password
 bucketname = 'crimac-scratch'  # s3 bucket
 
 s3folder = 'gpfs0-crimac-scratch/CRIMAC-FM-testdata/'  # all s3  crimac folders at HI start with gpfs0-crimac-scratch/
-savefolder = os.path.join(os.getenv('CRIMACSCRATCH'), 'CRIMAC-FM-testdata')
+savefolder = os.getenv('CRIMACSCRATCH')
 
 # for s3folder in data:
 show_folders(host, access_key, secret_key, bucketname, s3folder)
