@@ -187,7 +187,7 @@ def raw2track(paths, trackingParams):
    
 # Read metadata & env variables
 df = pd.read_csv('testdata.csv')
-crimac = os.getenv('CRIMAC')
+crimac = os.getenv('CRIMACSCRATCH')
 # Define input parameters
 pathTRanges = "TransducerRanges.xml"
 trackingParams = {'Active':                     ["true", "true", "true", "true", "true"],
@@ -272,10 +272,10 @@ trackingParams = {'Active':                     ["true", "true", "true", "true",
 
 for _dataset in df['dataset']:
    print(_dataset)
-   inputdir = os.path.join(crimac, _dataset[1:5],
+   inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                            _dataset, 'ACOUSTIC',
                            'EK80', 'EK80_RAWDATA')
-   outputdir = os.path.join(crimac, _dataset[1:5],
+   outputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                             _dataset, 'ACOUSTIC',
                             'LSSS', 'KORONA')
    
