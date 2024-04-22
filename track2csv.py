@@ -3,6 +3,11 @@ import os
 import struct
 import pandas as pd
 import numpy as np
+from netCDF4 import Dataset
+import xarray as xr
+import glob
+from matplotlib.colors import LogNorm
+import matplotlib.pyplot as plt
 
 from korona_parsers import SimradTrackInfoParser, SimradTrackBorderParser, SimradTrackContentsParser
 from ektools.simrad_parsers import SimradConfigParser, SimradXMLParser
@@ -107,23 +112,81 @@ def track2csv(input_dir, output_dir):
         #df_tracking_border.to_csv(os.path.join(output_dir, f'{raw_file.replace(".raw", "")}.csv'))
 
 
-def plot_track_data(input_dir, output_dir):
-    pass
+# def plot_track_data(outputdir):
+#     ncdir = os.path.join(outputdir, 'pc')
+#
 
+
+def track2png(pcdir, koronadir):
+    # List NC files
+    ncdir = os.path.join(pcdir, 'pc')
+    ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
+
+    assert len(ncfiles) > 0, f"No NetCDF files found in {ncdir}"
+
+    for ncfile in ncfiles:
+        # Assume that the group from the firs data set is similar across all nc files
+        nc_dataset = Dataset(ncfile, "r")
+        grp = sorted(list(nc_dataset.groups.keys()))
+
+        frequencies = sorted(nc_dataset.variables['frequency'][:])
+        data = [xr.open_dataset(ncfiles[0], engine='netcdf4', group=_grp)
+                for _grp in grp if not _grp == 'Environment']
+
+        # Read track dataframe
+        filename = os.path.split(ncfile)[1]
+        df = pd.read_csv(os.path.join(koronadir, filename.replace('.nc', '-korona.csv')))
+
+        for data_idx, _data in enumerate(data):
+            # Mean of pulsecompressed data across quadrants
+            y_pc_n = (_data['pulse_compressed_re'] + _data[
+                'pulse_compressed_im'] * 1j).mean(dim="sector")
+            y_pc_na = abs(y_pc_n).T  # Absolute value of y_pc_n
+            # Plot the data to file
+            y_pc_na.plot.imshow(norm=LogNorm())
+
+            frequency = frequencies[data_idx]
+            df_freq = df.loc[df.frequency == frequency]
+
+            track_mask = y_pc_na.copy()
+            track_mask[:] = 0
+
+            # Plot the track data
+            for j, track_id in enumerate(df_freq.single_target_identifier.unique()):
+                track = df_freq.loc[df_freq.single_target_identifier == track_id]
+
+                for _, row in track.iterrows():
+                    start_range = row.single_target_start_range
+                    stop_range = row.single_target_stop_range
+
+                    # Convert to datetime[ns]
+                    ping_time = np.datetime64(row.ping_time)
+
+                    range_slice = track_mask.sel(range=slice(start_range, stop_range))
+                    range_slice.sel(ping_time=ping_time, method='nearest')[:] = track_id
+
+            # overlay track mask
+            track_mask.plot.contour(levels=[1], colors='white', alpha=1.0, linewidths=1, linestyles='solid')
+
+            # save figure
+            _f = os.path.join(koronadir, filename.replace('.nc', f'_{frequency}.png'))
+            plt.savefig(_f)
+            plt.close()
 
 
 df = pd.read_csv('testdata.csv')
 crimac = os.getenv('CRIMACSCRATCH')
-
+crimac = "/nr/project/bild/CRIMAC/Broadband/Data/CRIMAC-FM-testdatapaper/"
 
 # Print the current test data sets
 for _dataset in df['dataset']:
     print(_dataset)
-    inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
+    koronadir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                              _dataset, 'ACOUSTIC',
                              'LSSS', 'KORONA')
-    outputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
-                             _dataset, 'ACOUSTIC',
-                             'LSSS', 'KORONA')
-    if os.path.exists(inputdir):
-        track2csv(inputdir, outputdir)
+    pcdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
+                                _dataset, 'ACOUSTIC', 'GRIDDED')
+
+    if os.path.exists(koronadir):
+        #track2csv(inputdir=koronadir, outputdir=koronadir)
+        track2png(pcdir, koronadir)
