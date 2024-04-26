@@ -21,6 +21,8 @@ def raw2pc(inputdir, outputdir):
     # Instanitate the class
     ksi = ks.KoronaScript()
 
+    # Add emptypingremoval module
+    ksi.add(ksm.EmptyPingRemoval())
     # Add the pulsecompression module and write to nc
     ksi.add(ksm.NetcdfWriter(Active = "true",
                              DirName = "pc",
