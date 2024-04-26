@@ -47,11 +47,7 @@ def pc2png(outputdir):
         # Assume that the group from the firs data set is similar across all nc files
         nc_dataset = Dataset(ncfiles[0], "r")
         grp = list(nc_dataset.groups.keys())
-
-        # I can't get open_mfdataset to work. anyone?
-        #data = [xr.open_mfdataset(ncdir, engine='netcdf4', group=_grp)
-        #        for _grp in grp if not _grp == 'Environment']
-        data = [xr.open_dataset(ncfiles[0], engine='netcdf4', group=_grp)
+        data = [xr.open_mfdataset(ncfiles, engine='netcdf4', group=_grp)
                 for _grp in grp if not _grp == 'Environment']
         
         for _data in data:
@@ -65,7 +61,8 @@ def pc2png(outputdir):
                 'channel_id'].replace(" ", "_")+'.png')
             plt.savefig(_f)
             plt.close()
-        
+
+
 # Read metadata & env variables
 df = pd.read_csv('testdata.csv')
 crimac = os.getenv('CRIMACSCRATCH')
