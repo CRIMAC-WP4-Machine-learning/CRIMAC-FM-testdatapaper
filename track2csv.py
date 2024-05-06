@@ -9,9 +9,12 @@ import glob
 from matplotlib.colors import LogNorm
 import matplotlib.pyplot as plt
 import re
+import polars as pl
+from netCDF4 import Dataset
 
-from korona_parsers import SimradTrackInfoParser, SimradTrackBorderParser, SimradTrackContentsParser
+from ektools.korona_parsers import SimradTrackInfoParser, SimradTrackBorderParser, SimradTrackContentsParser
 from ektools.simrad_parsers import SimradConfigParser, SimradXMLParser
+
 
 def index(f):
     """
@@ -23,10 +26,10 @@ def index(f):
         with mmap.mmap(fh.fileno(), length=0, access=mmap.ACCESS_READ) as mf:
             position = 0
             while position < len(mf):
-                length, msg = struct.unpack('<l4s', mf[position:position+8])
-                if position+length > len(mf):
+                length, msg = struct.unpack('<l4s', mf[position:position + 8])
+                if position + length > len(mf):
                     raise Exception('Premature EOF, truncated RAW file?')
-                v = struct.unpack('<l', mf[position+length+4:position+length+8])
+                v = struct.unpack('<l', mf[position + length + 4:position + length + 8])
                 t = msg.decode('latin-1')
                 if v[0] != length: print(
                     f'Datagram at {position}: control lenght mismatch ({length} vs {v[0]}) - endianness error or corrupt file?')
@@ -35,91 +38,86 @@ def index(f):
 
     return idx
 
-def parse_datagram(msg, length, typ):
-    """
-    Parse a datagram according to the format dictionary.
-    """
-    if typ == 'TBR0':
-        parser = SimradTrackBorderParser()
-        return parser._unpack_contents(msg, length)
-    elif typ == 'TNF0':
-        parser = SimradTrackInfoParser()
-        return parser._unpack_contents(msg, length)
-    elif typ == 'TTC0':
-        parser = SimradTrackContentsParser()
-        return parser._unpack_contents(msg, length)
-    elif typ == "CON0":
-        # Head datagram, needed to get frequencies
-        parser = SimradConfigParser()
-        return parser._unpack_contents(msg, length)
-    elif typ == "XML0":
-        parser = SimradXMLParser()
-        return parser._unpack_contents(msg, length, 0)
-    else:
-        raise ValueError(f"Unknown datagram type: {typ}")
 
-
-def track2csv(inputdir, outputdir):
+def track2nc(inputdir, outputdir):
     # get raw files
     raw_files = [os.path.join(inputdir, f) for f in os.listdir(inputdir) if f.endswith('.raw')]
     assert len(raw_files) > 0, f"No Korona raw files found in {inputdir}"
 
+
+    t_infos = []
+    t_borders = []
     for raw_file in raw_files:
         # The frequencies are needed to convert the channel index to frequency. Is there an easier way to read them?
         transducer_frequencies = []
-        relevant_datagrams = []
         for pos, typ, length, msg in index(raw_file):
             # Read frequencies
             if len(transducer_frequencies) == 0 and typ == "XML0":
-                parsed_datagram = parse_datagram(msg, length, typ)
+                parser = SimradXMLParser()
+                parsed_datagram = parser._unpack_contents(msg, length, 0)
                 for freq in parsed_datagram['configuration']:
                     transducer_frequencies.append(float(parsed_datagram['configuration'][freq]['transducer_frequency']))
                 transducer_frequencies = np.array(sorted(transducer_frequencies))
 
             # If datagram type is related to tracking
-            if typ in ['TBR0', 'TNF0', 'TTC0']:
-                parsed_datagram = parse_datagram(msg, length, typ)
-                relevant_datagrams.append(parsed_datagram)
+            if typ == 'TBR0':
+                parser = SimradTrackBorderParser()
+                parsed_datagram = parser._unpack_contents(msg, length)
+                t_borders.append(parsed_datagram)
+            elif typ == 'TNF0':
+                parser = SimradTrackInfoParser()
+                parsed_datagram = parser._unpack_contents(msg, length)
+                t_infos.append(parsed_datagram)
 
-        # Retrieve tracking border datagrams and add to dataframe
-        tracking_border = [datagram for datagram in relevant_datagrams if datagram['type'] == 'TBR0']
-        df_tracking_border = pd.DataFrame(tracking_border)
+        # Retrieve tracking border datagrams and add to polars dataframe
+        df_tracking_border = pl.DataFrame(t_borders)
 
-        # Retrieve tracking info datagrams and add to dataframe
-        tracking_info = [datagram for datagram in relevant_datagrams if datagram['type'] == 'TNF0']
-        df_tracking_info = pd.DataFrame(tracking_info)
+        # Retrieve tracking info datagrams and add to polars dataframe
+        df_tracking_info = pl.DataFrame(t_infos)
 
         # Remove targets that are not valid according to tracking info datagrams
-        df_tracking_info = df_tracking_info[df_tracking_info['valid'] == 1]
-        df_tracking_border = df_tracking_border[df_tracking_border['id'].isin(df_tracking_info.id.unique())]
-        df_tracking_border = df_tracking_border.reset_index(drop=True)
+        df_tracking_border = df_tracking_border.join(df_tracking_info[['id', 'valid']], on='id', how='inner')
+        df_tracking_border.drop_in_place('valid')
+        del df_tracking_info
 
         # convert to standard name format
-        df_tracking_border = df_tracking_border.rename(columns={'id': 'single_target_identifier',
-                                                                'timestamp': 'ping_time',
-                                                                'channel': 'frequency_index',
-                                                                'minDepth': 'single_target_start_range',
-                                                                'maxDepth': 'single_target_stop_range',
-                                                                'peakDepth': 'single_target_range',
-                                                                })
-        # Add the frequency index
-        df_tracking_border['frequency'] = (
-            transducer_frequencies)[df_tracking_border['frequency_index'].values - 1]  # Count starts from 1 (?)
+        df_tracking_border = df_tracking_border.rename({"id": "single_target_identifier",
+                                                        "timestamp": "ping_time",
+                                                        "channel": "frequency_index",
+                                                        "minDepth": "single_target_start_range",
+                                                        "maxDepth": "single_target_stop_range",
+                                                        "peakDepth": "single_target_range",
+                                                        })
+
+        df_tracking_border = df_tracking_border.with_columns(pl.col("ping_time").dt.cast_time_unit('ns'))
+
+        # Add the frequency
+        frequency_index = df_tracking_border['frequency_index'].to_numpy()
+        df_tracking_border = df_tracking_border.with_columns(
+            pl.Series(name='frequency', values=transducer_frequencies[frequency_index - 1]))
 
         # Add the number of targets in each ping
-        df_tracking_border['single_target_count'] = (
-            df_tracking_border.groupby(["ping_time"])['ping_time'].transform('size'))
+        # NB not in use, this would require ping_time as a dimension in the xarray dataset
+        # df_tracking_border = df_tracking_border.with_columns(pl.len().over('ping_time').alias('single_target_count'))
 
-        # Format ping time as string object
-        df_tracking_border['ping_time'] = (
-            df_tracking_border['ping_time'].apply(lambda x: x.strftime("%Y-%m-%dT%H:%M:%S.%fZ")))
+        # Create xarray dataset
+        ds = xr.Dataset(
+            {
+                # 'single_target_alongship_angle': (['i'], single_target_alongship_angle),
+                # 'single_target_athwartship_angle': (['i'], single_target_athwartship_angle),
+                'ping_time': (['i'], df_tracking_border['ping_time'].to_numpy()),
+                'single_target_identifier': (['i'], df_tracking_border['single_target_identifier'].to_numpy()),
+                'single_target_start_range': (['i'], df_tracking_border['single_target_start_range'].to_numpy()),
+                'single_target_stop_range': (['i'], df_tracking_border['single_target_stop_range'].to_numpy()),
+                'single_target_range': (['i'], df_tracking_border['single_target_range'].to_numpy()),
+                'frequency': (['i'], df_tracking_border['frequency'].to_numpy())
+            },
+            coords={"i": (['i'], np.arange(len(df_tracking_border)))}
+        )
 
-        # Drop columns that are not used in the standard
-        df_tracking_border = df_tracking_border.drop(columns=['nttime_low', 'nttime_high', 'type', 'frequency_index'])
-
-        # save tracking data to csv
-        df_tracking_border.to_csv(os.path.join(outputdir, f'{raw_file.replace(".raw", "")}.csv'))
-
+        # Save xarray to netcdf
+        save_path = os.path.join(outputdir, os.path.split(raw_file)[1].replace('.raw', '.nc'))
+        ds.to_netcdf(os.path.join(outputdir, save_path))
 
 def track2png(pcdir, koronadir):
     # List NC files
@@ -131,72 +129,81 @@ def track2png(pcdir, koronadir):
     for ncfile in ncfiles:
         # Read track dataframe
         filename = os.path.split(ncfile)[1]
-        df = pd.read_csv(os.path.join(koronadir, filename.replace('.nc', '-korona.csv')))
-        if len(df) == 0:
+
+        # Read track xarray
+        ds_track = xr.open_dataset(os.path.join(koronadir, filename.replace('.nc', '-korona.nc')))
+        if ds_track['i'].shape[0] == 0:
+            print(f"No tracks found in {filename}")
             continue
 
         # Assume that the group from the firs data set is similar across all nc files
         nc_dataset = Dataset(ncfile, "r")
         grp = sorted(list(nc_dataset.groups.keys()))
 
+        # Read data
         data = [xr.open_dataset(ncfile, engine='netcdf4', group=_grp)
                 for _grp in grp if not _grp == 'Environment']
 
         # Regex to extract channel from channel_id
         channel_ids = [d.attrs['channel_id'] for d in data]
-        frequencies = [int(re.search(r'ES(\d+)', channel_id).group(1))*1000 for channel_id in channel_ids]
+        frequencies = [int(re.search(r'ES(\d+)', channel_id).group(1)) * 1000 for channel_id in channel_ids]
+
+        # Initialize track masks, like pulse_compressed_re, but without sector dimension
+        track_masks = [xr.full_like(d['pulse_compressed_re'].isel(sector=0), fill_value=np.nan) for d in data]
+
+        # initialize figure
+        fig, axs = plt.subplots(1, len(data), figsize=(20, 10))
 
         for data_idx, _data in enumerate(data):
             # Mean of pulsecompressed data across quadrants
             y_pc_n = (_data['pulse_compressed_re'] + _data[
                 'pulse_compressed_im'] * 1j).mean(dim="sector")
             y_pc_na = abs(y_pc_n).T  # Absolute value of y_pc_n
-            # Plot the data to file
-            y_pc_na.plot.imshow(norm=LogNorm())
 
-            frequency = frequencies[data_idx]
+            # Plot the data
+            y_pc_na.plot.imshow(norm=LogNorm(), ax=axs[data_idx])
 
-            # Get tracks for the current frequency
-            df_freq = df.loc[df.frequency == frequency]
+        # Plot the track data
+        for i in ds_track['i']:
+            track = ds_track.sel(i=i)
 
-            # Initialize empty track mask
-            track_mask = y_pc_na.copy()
-            track_mask[:] = 0
+            start_range = track.single_target_start_range
+            stop_range = track.single_target_stop_range
+            frequency = track.frequency.values
+            frequency_idx = np.where(frequencies == frequency)[0][0]
 
-            # Plot the track data
-            for j, track_id in enumerate(df_freq.single_target_identifier.unique()):
-                track = df_freq.loc[df_freq.single_target_identifier == track_id]
 
-                for _, row in track.iterrows():
-                    start_range = row.single_target_start_range
-                    stop_range = row.single_target_stop_range
+            # Convert to datetime[ns], replace Z to silence deprecation warning (time zone info)
+            ping_time = track.ping_time #np.datetime64(track.ping_time.values.replace('Z', ''))
+            range_slice = track_masks[frequency_idx].sel(range=slice(start_range, stop_range))
+            range_slice.sel(ping_time=ping_time, method='nearest')[:] = 1
 
-                    # Convert to datetime[ns], replace Z to silence deprecation warning (time zone info)
-                    ping_time = np.datetime64(row.ping_time.replace('Z', ''))
-                    range_slice = track_mask.sel(range=slice(start_range, stop_range))
-                    range_slice.sel(ping_time=ping_time, method='nearest')[:] = track_id
+        # Plot contour of track mask
+        for freq_idx in range(len(data)):
+            track_mask = track_masks[freq_idx].T
+            track_mask.plot.imshow(ax=axs[freq_idx], cmap='autumn', add_colorbar=False)
+            axs[freq_idx].set_title(f'{frequencies[freq_idx]} Hz')
 
-            # Plot contours of tracks (merely plotting track mask is not really visible)
-            track_mask.plot.contour(levels=[0], colors='white', alpha=1.0, linewidths=1, linestyles='solid')
+            # Alternatively, plot contours of tracks
+            #track_mask.plot.contour(levels=[0, 1], colors='white', alpha=1.0, linewidths=1, linestyles='solid', ax=axs[freq_idx])
 
-            # save figure
-            _f = os.path.join(koronadir, filename.replace('.nc', f'_{frequency}Hz.png'))
-            plt.savefig(_f)
-            plt.close()
+        # save figure
+        _f = os.path.join(koronadir, filename.replace('.nc', f'_track.png'))
+        plt.savefig(_f)
 
 
 df = pd.read_csv('testdata.csv')
 crimac = os.getenv('CRIMACSCRATCH')
+crimac = "/nr/project/bild/CRIMAC/Broadband/Data/CRIMAC-FM-testdatapaper/"
 
 # Print the current test data sets
-for _dataset in df['dataset'][2:]:
-    print(_dataset)
+for _dataset in df['dataset'][2:3]:
     koronadir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                              _dataset, 'ACOUSTIC',
                              'LSSS', 'KORONA')
     pcdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
-                                _dataset, 'ACOUSTIC', 'GRIDDED')
+                         _dataset, 'ACOUSTIC', 'GRIDDED')
 
     if os.path.exists(koronadir):
-        track2csv(inputdir=koronadir, outputdir=koronadir)
+        track2nc(inputdir=koronadir, outputdir=koronadir)
         track2png(pcdir, koronadir)
