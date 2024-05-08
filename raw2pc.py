@@ -8,7 +8,8 @@ import glob
 import pandas as pd
 from matplotlib.colors import LogNorm
 from netCDF4 import Dataset
-
+import ektools as E
+import ektools.actions as A
 """
 
 This example reads the specified test set (e.g. T2023001), applies pulse compression and stores 
@@ -17,11 +18,54 @@ the results as an netcdf. the NetCDF file is read and the pulse compressed data 
 """
 
 
-def raw2pc(inputdir, outputdir, split):
+def raw2meta(inputdir):
+    # List the raw file
+    rawf = [_f for _f in os.listdir(inputdir) if os.path.splitext(_f)[-1] == '.raw']
+    # Read the index from the raw file
+    ix = E.index(os.path.join(inputdir, rawf[0]))
+
+    # Parse the index from the raw file
+    ind = E.parse(ix[1][3])
+    # Check if key ['initialparameter'] exists
+    channels = {}
+    comments = {}
+
+    if 'initialparameter' in ind:
+        ind_par = ind['initialparameter']
+        ind_par.keys()
+        _channels = list(range(0, len(ind_par)))
+        ping_id = [ind_par[i]['ping_id'] for i in list(ind_par.keys())]
+        pulse_duration = [ind_par[i]['pulse_duration']*1000 for i in list(ind_par.keys())]
+        _pulse_form = [ind_par[i]['pulse_form'] for i in list(ind_par.keys())]
+        pulse_form = ['FM' if x == 1 else 'CW' for x in _pulse_form]
+        slope = [ind_par[i]['slope'] for i in list(ind_par.keys())]
+        # Split into unique ping groups
+        for _ping_id in list(dict.fromkeys(ping_id)):
+            channels[_ping_id] = [_channel
+                                  for i, _channel
+                                  in enumerate(_channels)
+                                  if ping_id[i] == _ping_id]
+            comments[_ping_id] = [pulse_form[i]+'_'+str(pulse_duration[i]).replace('.','')+'ms_0'+str(slope[i]).split('.')[1]+'taper'
+                                  for i, test
+                                  in enumerate(_channels)
+                                  if ping_id[i] == _ping_id]
+    elif 'channel_id' in ind:
+        channels['1'] = 1
+        comments['1'] = ind['channel_id'].decode().replace(' ','_')
+    else:
+        # This is the case when no "initialparameter" are found in the data file
+        print('Key not in dic for '+inputdir)
+        channels = None
+        comments = None
+    return channels, comments
+
+
+def raw2pc(inputdir, outputdir, channels, comments, MainFrequency):
+    
     # Ketil: The parameters below are needed from the raw files. Can we use ektools? It is testdataset
     # T2023002 that needs splitting. The other dont. Ideally we need code to do this from the data
     # themselves with out the logic of split=='yes'
-    
+    '''
     if split == 'yes':
         # Define channels to keep in each splitting operation
         channels = {"CW" : [1, 5, 9, 13, 17],
@@ -39,21 +83,24 @@ def raw2pc(inputdir, outputdir, split):
         # Define comment to include in each split dataset
         comments = {"FM2ms" : "FM_2ms_FAST_taper"}
     # /Ketil: End of help needed
-
+    '''
+    
     for name, channel, comment in zip(channels, channels.values(), comments.values()):
         
         # Instantiate the class
         ksi = ks.KoronaScript()
         # Add emptypingremoval module
         ksi.add(ksm.EmptyPingRemoval())
+
         # Add comment
         ksi.add(ksm.Comment(LineBreak='false', Label=comment))
         # Remove channels
         ksi.add(ksm.ChannelRemoval(Channels=channel, KeepSpecified='true'))
         # Add the pulsecompression module and write to nc
+            
         ksi.add(ksm.NetcdfWriter(Active = "true",
-                                 DirName = name, # "pc", # Use channel?
-                                 MainFrequency = "200", # this must be added to the metadata
+                                 DirName = 'pc_'+name, # "pc", # Use channel?
+                                 MainFrequency = str(MainFrequency),
                                  WriterType = "CHANNEL_GROUPS",
                                  GriddedOutputType = "PULSE_COMPRESSION",
                                  WriteAngels = "true",
@@ -96,11 +143,14 @@ def pc2png(outputdir):
 
 
 # Read metadata & env variables
-df = pd.read_csv('testdata.csv').iloc[[10, 12], 0:6] # Subset data set for testing
+#df = pd.read_csv('testdata.csv').iloc[8:11, 0:6] # Subset data set for testing
+df = pd.read_csv('testdata.csv').iloc[:, 0:9] # Subset data set for testing
 crimac = os.getenv('CRIMACSCRATCH')
 
 # Print the current test data sets
-for _dataset, split in zip(df['dataset'], df['split']):
+
+i = 0
+for _dataset in df['dataset']:
     print(_dataset)
     inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                             _dataset, 'ACOUSTIC',
@@ -108,9 +158,16 @@ for _dataset, split in zip(df['dataset'], df['split']):
     outputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                              _dataset, 'ACOUSTIC',
                              'GRIDDED')
-
+    
     if os.path.exists(inputdir):
         print(inputdir)
         print(outputdir)
-        raw2pc(inputdir, outputdir, split)
-        # pc2png(outputdir)
+        
+        channels, comments = raw2meta(inputdir)
+        print(channels)
+        print(comments)
+        raw2pc(inputdir, outputdir, channels, comments,
+               df['MainFrequency'][i])
+        #pc2png(outputdir)
+        i += 1
+
