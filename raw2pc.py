@@ -19,7 +19,15 @@ the results as an netcdf. the NetCDF file is read and the pulse compressed data 
 
 
 def raw2meta(inputdir):
-    # List the raw file
+    """
+
+    Raw2meta parse the raw file using ektools and extracts the ping groups, if
+    applicable. This is needed when ping sequencing are used or when different
+    transducers are multiplexed. A separate nc files with pulse compressed data
+    are generated with all the channels for the specific ping group.
+
+    """
+    
     rawf = [_f for _f in os.listdir(inputdir) if os.path.splitext(
         _f)[-1] == '.raw']
     # Read the index from the raw file
@@ -36,7 +44,6 @@ def raw2meta(inputdir):
         ind_par = ind['initialparameter']
         ind_par.keys()
         _channels = list(range(1, len(ind_par)+1))  # Channels are counted from 1
-        print(_channels)
         ping_id = [ind_par[i]['ping_id'] for i in list(ind_par.keys())]
         pulse_duration = [ind_par[i]['pulse_duration']*1000 for i in list(
             ind_par.keys())]
@@ -69,8 +76,18 @@ def raw2meta(inputdir):
 
 
 def raw2pc(inputdir, outputdir, channels, comments, MainFrequency):
+    
+    """
+
+    Raw2pc convert the raw files to pulse compressed files (when applicable) 
+    for each ping group using korona and KoroanScript.
+
+    """
+    
     # Loop over the different ping groups
     for name, channel, comment in zip(channels, channels.values(), comments.values()):
+        print(' ')
+        print('Processing pc_'+name+': raw2pc')
         
         # Instantiate the class
         ksi = ks.KoronaScript()
@@ -95,48 +112,58 @@ def raw2pc(inputdir, outputdir, channels, comments, MainFrequency):
         # Print the configuration
         ksi.write()
         # Run KoronaScript
-        ksi.run(src=inputdir, dst=outputdir) # Begrening på kjernar
+        ksi.run(src=inputdir, dst=outputdir)
 
     # Remove temporary korona files
     kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.*')]
 
 
-def pc2png(outputdir):
-    # List NC files
-    ncdir = os.path.join(outputdir, 'pc')
-    print(ncdir)
-    ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
-    print(ncfiles)
-    if len(ncfiles) > 0:
-        # Assume that the group from the firs data set is similar across all nc files
-        nc_dataset = Dataset(ncfiles[0], "r")
-        grp = list(nc_dataset.groups.keys())
-        data = [xr.open_mfdataset(ncfiles, engine='netcdf4', group=_grp)
-                for _grp in grp if not _grp == 'Environment']
+def pc2png(outputdir, channels):
+
+    """
         
-        for _data in data:
-            # Mean of pulsecompressed data across quadrants
-            y_pc_n = (_data['pulse_compressed_re'] + _data[
-                'pulse_compressed_im']*1j).mean(dim="sector")
-            y_pc_na =  abs(y_pc_n).T # Absolute value of y_pc_n
-            # Plot the data to file
-            y_pc_na.plot.imshow(norm=LogNorm())
-            _f =  os.path.join(ncdir, _data.attrs[
-                'channel_id'].replace(" ", "_")+'.png')
-            plt.savefig(_f)
-            plt.close()
+    pc2png reads the nc files and generate one plot per channel in the ping 
+    group
+
+    """
+
+    # Loop over the different ping groups
+    for name in channels:
+        print(' ')
+        print('Processing pc_'+name+': pc2png')
+        
+        # List NC files
+        ncdir = os.path.join(outputdir, 'pc_'+name)
+        print(ncdir)
+        ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
+        print(ncfiles)
+        if len(ncfiles) > 0:
+            # Assume that the group from the firs data set is similar across all nc files
+            nc_dataset = Dataset(ncfiles[0], "r")
+            grp = list(nc_dataset.groups.keys())
+            data = [xr.open_mfdataset(ncfiles, engine='netcdf4', group=_grp)
+                    for _grp in grp if not _grp == 'Environment']
+        
+            for _data in data:
+                # Mean of pulsecompressed data across quadrants
+                y_pc_n = (_data['pulse_compressed_re'] + _data[
+                    'pulse_compressed_im']*1j).mean(dim="sector")
+                y_pc_na =  abs(y_pc_n).T # Absolute value of y_pc_n
+                # Plot the data to file
+                y_pc_na.plot.imshow(norm=LogNorm())
+                _f =  os.path.join(ncdir, _data.attrs[
+                    'channel_id'].replace(" ", "_")+'.png')
+                plt.savefig(_f)
+                plt.close()
 
 
 # Read metadata & env variables
-#df = pd.read_csv('testdata.csv').iloc[8:11, 0:6] # Subset data set for testing
-df = pd.read_csv('testdata.csv')  # .iloc[:, 0:9] # Subset data set for testing
+df = pd.read_csv('testdata.csv')
 crimac = os.getenv('CRIMACSCRATCH')
 
 # Print the current test data sets
-Comments = []
 i = 0
 for _dataset in df['dataset']:
-    print(_dataset)
     inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                             _dataset, 'ACOUSTIC',
                             'EK80', 'EK80_RAWDATA')
@@ -145,16 +172,27 @@ for _dataset in df['dataset']:
                              'GRIDDED')
     
     if os.path.exists(inputdir):
+        
+        print('***************************************************')
+        print('*****************'+_dataset+'**************************')
+        print('***************************************************')
+        print(' ')
         print(inputdir)
         print(outputdir)
-        # Extract metadata
+        print(' ')
+        print('Extract metadata:')
         channels, comments = raw2meta(inputdir)
-        # Add comments to list
-        Comments.append(comments)
-        # Convert to netcdf file
-        #raw2pc(inputdir, outputdir, channels, comments,
-        #       df['MainFrequency'][i])
-        # Plot figures
-        #pc2png(outputdir)
+        print('channels per ping group:')
+        print(channels)
+        print('Comments:')
+        print(comments)
+        print(' ')
+        print('*****************raw2pc****************************')
+        raw2pc(inputdir, outputdir, channels, comments,
+               df['MainFrequency'][i])
+        print(' ')
+        print('*****************pc2png****************************')
+        pc2png(outputdir, channels)
         i += 1
-
+        print(' ')
+        print(' ')
