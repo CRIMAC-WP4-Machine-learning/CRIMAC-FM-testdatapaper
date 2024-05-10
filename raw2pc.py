@@ -20,22 +20,26 @@ the results as an netcdf. the NetCDF file is read and the pulse compressed data 
 
 def raw2meta(inputdir):
     # List the raw file
-    rawf = [_f for _f in os.listdir(inputdir) if os.path.splitext(_f)[-1] == '.raw']
+    rawf = [_f for _f in os.listdir(inputdir) if os.path.splitext(
+        _f)[-1] == '.raw']
     # Read the index from the raw file
     ix = E.index(os.path.join(inputdir, rawf[0]))
-
+    
     # Parse the index from the raw file
     ind = E.parse(ix[1][3])
-    # Check if key ['initialparameter'] exists
+    
     channels = {}
     comments = {}
-
+    
+    # Loop over the different ping groups when the key ['initialparameter'] exists
     if 'initialparameter' in ind:
         ind_par = ind['initialparameter']
         ind_par.keys()
-        _channels = list(range(0, len(ind_par)))
+        _channels = list(range(1, len(ind_par)+1))  # Channels are counted from 1
+        print(_channels)
         ping_id = [ind_par[i]['ping_id'] for i in list(ind_par.keys())]
-        pulse_duration = [ind_par[i]['pulse_duration']*1000 for i in list(ind_par.keys())]
+        pulse_duration = [ind_par[i]['pulse_duration']*1000 for i in list(
+            ind_par.keys())]
         _pulse_form = [ind_par[i]['pulse_form'] for i in list(ind_par.keys())]
         pulse_form = ['FM' if x == 1 else 'CW' for x in _pulse_form]
         slope = [ind_par[i]['slope'] for i in list(ind_par.keys())]
@@ -45,15 +49,19 @@ def raw2meta(inputdir):
                                   for i, _channel
                                   in enumerate(_channels)
                                   if ping_id[i] == _ping_id]
-            comments[_ping_id] = [pulse_form[i]+'_'+str(pulse_duration[i]).replace('.','')+'ms_0'+str(slope[i]).split('.')[1]+'taper'
+            comments[_ping_id] = [pulse_form[i]+'_'+str(
+                pulse_duration[i]).replace('.', '')+'ms_0'+str(
+                    slope[i]).split('.')[1]+'taper'
                                   for i, test
                                   in enumerate(_channels)
                                   if ping_id[i] == _ping_id]
-    elif 'channel_id' in ind:
+            
+    elif 'channel_id' in ind:  # This is the used when no 'initialparameter' is found, e.g. wbat data
         channels['1'] = 1
-        comments['1'] = ind['channel_id'].decode().replace(' ','_')
+        comments['1'] = ind['channel_id'].decode().replace(' ', '_')
     else:
-        # This is the case when no "initialparameter" are found in the data file
+        # This is the case when no 'initialparameter' or 'channel_is' are
+        # found in the data file
         print('Key not in dic for '+inputdir)
         channels = None
         comments = None
@@ -61,30 +69,7 @@ def raw2meta(inputdir):
 
 
 def raw2pc(inputdir, outputdir, channels, comments, MainFrequency):
-    
-    # Ketil: The parameters below are needed from the raw files. Can we use ektools? It is testdataset
-    # T2023002 that needs splitting. The other dont. Ideally we need code to do this from the data
-    # themselves with out the logic of split=='yes'
-    '''
-    if split == 'yes':
-        # Define channels to keep in each splitting operation
-        channels = {"CW" : [1, 5, 9, 13, 17],
-                    "FM2ms" : [2, 6, 10, 14, 18],
-                    "FM4ms" : [3, 7, 11, 15, 19],
-                    "FM2msSLOW" : [4, 8, 12, 16, 20]}
-
-        # Define comment to include in each split dataset
-        comments = {"CW" : "CW_0256ms",
-                    "FM2ms" : "FM_2ms_FAST_taper",
-                    "FM4ms" : "FM_4ms_FAST_taper",
-                    "FM2msSLOW" : "FM_2ms_SLOW_taper"}
-    else:
-        channels = {"FM2ms" : [1, 2, 3, 4]} # this is a hack, must know the number of channels in the data set
-        # Define comment to include in each split dataset
-        comments = {"FM2ms" : "FM_2ms_FAST_taper"}
-    # /Ketil: End of help needed
-    '''
-    
+    # Loop over the different ping groups
     for name, channel, comment in zip(channels, channels.values(), comments.values()):
         
         # Instantiate the class
@@ -144,11 +129,11 @@ def pc2png(outputdir):
 
 # Read metadata & env variables
 #df = pd.read_csv('testdata.csv').iloc[8:11, 0:6] # Subset data set for testing
-df = pd.read_csv('testdata.csv').iloc[:, 0:9] # Subset data set for testing
+df = pd.read_csv('testdata.csv')  # .iloc[:, 0:9] # Subset data set for testing
 crimac = os.getenv('CRIMACSCRATCH')
 
 # Print the current test data sets
-
+Comments = []
 i = 0
 for _dataset in df['dataset']:
     print(_dataset)
@@ -162,12 +147,14 @@ for _dataset in df['dataset']:
     if os.path.exists(inputdir):
         print(inputdir)
         print(outputdir)
-        
+        # Extract metadata
         channels, comments = raw2meta(inputdir)
-        print(channels)
-        print(comments)
-        raw2pc(inputdir, outputdir, channels, comments,
-               df['MainFrequency'][i])
+        # Add comments to list
+        Comments.append(comments)
+        # Convert to netcdf file
+        #raw2pc(inputdir, outputdir, channels, comments,
+        #       df['MainFrequency'][i])
+        # Plot figures
         #pc2png(outputdir)
         i += 1
 
