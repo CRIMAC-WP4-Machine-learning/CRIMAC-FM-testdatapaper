@@ -30,7 +30,7 @@ def raw2meta(inputdir):
     
     rawf = [_f for _f in os.listdir(inputdir) if os.path.splitext(
         _f)[-1] == '.raw']
-    # Read the index from the raw file
+    # Read the index from the first raw file
     ix = E.index(os.path.join(inputdir, rawf[0]))
     
     # Parse the index from the raw file
@@ -38,7 +38,6 @@ def raw2meta(inputdir):
     
     channels = {}
     comments = {}
-    
     # Loop over the different ping groups when the key ['initialparameter'] exists
     if 'initialparameter' in ind:
         ind_par = ind['initialparameter']
@@ -72,7 +71,7 @@ def raw2meta(inputdir):
         print('Key not in dic for '+inputdir)
         channels = None
         comments = None
-    return channels, comments
+    return channels, comments, ind
 
 
 def raw2pc(inputdir, outputdir, channels, comments, MainFrequency):
@@ -181,11 +180,14 @@ for _dataset in df['dataset']:
         print(outputdir)
         print(' ')
         print('Extract metadata:')
-        channels, comments = raw2meta(inputdir)
+        channels, comments, ind = raw2meta(inputdir)
         print('channels per ping group:')
         print(channels)
         print('Comments:')
         print(comments)
+        print(' ')
+        print('Raw index information:')
+        print(ind)
         print(' ')
         print('*****************raw2pc****************************')
         raw2pc(inputdir, outputdir, channels, comments,
