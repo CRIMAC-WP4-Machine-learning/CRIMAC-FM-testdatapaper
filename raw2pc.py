@@ -65,7 +65,8 @@ def pc2png(outputdir):
                 'channel_id'].replace(" ", "_")+'.png')
             plt.savefig(_f)
             plt.close()
-        
+
+
 # Read metadata & env variables
 df = pd.read_csv('testdata.csv')
 crimac = os.getenv('CRIMACSCRATCH')

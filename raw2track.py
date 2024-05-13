@@ -13,16 +13,21 @@ import matplotlib.pyplot as plt
 import re
 import polars as pl
 from netCDF4 import Dataset
+import json
+
 from ektools.korona_parsers import SimradTrackInfoParser, SimradTrackBorderParser
 from ektools.simrad_parsers import SimradXMLParser
 
 """
 
-This example reads the specified test set (e.g. T2023001), applies pulse compression and stores 
-the results as an netcdf. the NetCDF file is read and the pulse compressed data are plotted.
+This example loads testdataset as defined in testdata.csv and performs 
+tracking. Datasets missing either of the files 'TransducerRanges.xml'
+or 'TrackingParameters.json' will be skipped.
 
+TransducerRanges.xml contains information on the transducers in the data.
+The path of this file is passed to Korona.
+Example: 
 """
-
 
 def raw2track(paths, trackingParams):
     # Can paths be set as environment variables???
@@ -247,6 +252,25 @@ def track2nc(inputdir, outputdir):
                 parsed_datagram = parser._unpack_contents(msg, length)
                 t_infos.append(parsed_datagram)
 
+        if len(t_borders) == 0:
+            # create empty netcdf file
+            ds = xr.Dataset(
+                {
+                    'ping_time': (['i'], []),
+                    'single_target_identifier': (['i'], []),
+                    'single_target_start_range': (['i'], []),
+                    'single_target_stop_range': (['i'], []),
+                    'single_target_range': (['i'], []),
+                    'frequency': (['i'], [])
+                },
+                coords={"i": (['i'], [])}
+            )
+
+            # Save xarray to netcdf
+            save_path = os.path.join(outputdir, os.path.split(raw_file)[1].replace('.raw', '.nc'))
+            ds.to_netcdf(os.path.join(outputdir, save_path))
+            continue
+
         # Retrieve tracking border datagrams and add to polars dataframe
         df_tracking_border = pl.DataFrame(t_borders)
 
@@ -333,6 +357,9 @@ def track2png(pcdir, koronadir):
         # initialize figure
         fig, axs = plt.subplots(1, len(data), figsize=(20, 10))
 
+        if len(data) == 1:
+            axs = [axs]
+
         for data_idx, _data in enumerate(data):
             # Mean of pulsecompressed data across quadrants
             y_pc_n = (_data['pulse_compressed_re'] + _data[
@@ -349,7 +376,12 @@ def track2png(pcdir, koronadir):
             start_range = track.single_target_start_range
             stop_range = track.single_target_stop_range
             frequency = track.frequency.values
-            frequency_idx = np.where(frequencies == frequency)[0][0]
+            frequency_idx = np.where(frequencies == frequency)
+
+            if len(frequency_idx[0]) == 0:
+                print(f"Frequency channel {frequency} not found in gridded dataset {ncfile}")
+                continue
+            frequency_idx = frequency_idx[0][0]
 
             # Convert to datetime[ns], replace Z to silence deprecation warning (time zone info)
             ping_time = track.ping_time  # np.datetime64(track.ping_time.values.replace('Z', ''))
@@ -376,90 +408,87 @@ crimac = os.getenv('CRIMACSCRATCH')
 
 # Define input parameters
 pathTRanges = "TransducerRanges.xml"
-assert os.path.exists(pathTRanges), f"Cannot find {pathTRanges}"
+trackingParams = {'Active':                     ["true", "true", "true", "true", "true"],
+                 'TrackerType':                    ["Peak", "Peak", "Peak", "Peak", "Peak"],
+                 'kHz':                            ["38", "70", "120", "200", "333"],
+                 'PlatformMotionType':             ["Floating", "Floating", "Floating", "Floating", "Floating"],
+                 'MinTS':                          ["-50","-50","-50","-50","-50"],
+                 'PulseLengthDeterminationLevel':  ["50","50","50","50","50"],
+                 'MinEchoLength':                  ["0","0","0","0","0"],
+                 'MaxEchoLength':                  ["1","1","1","1","1"],
+                 'MaxGainCompensation':            ["18","18","18","18","18"],
+                 'DoPhaseDeviationCheck':          ["false","false","false","false","false"],
+                 'MaxPhaseDevSteps':               ["10","10","10","10","10"],
+                 'MaxTS':                          ["0","0","0","0","0"],
+                 'MaxDepth':                       ["22","22","22","22","22"], #Must be determined per dataset
+                 'MaxAlongshipAngle':              ["10","10","10","10","10"],
+                 'MaxAthwartshipAngle':            ["10","10","10","10","10"],
+                 'InitiationGateFunction':         [{
+                                                       "Alpha": 2.8,
+                                                       "Beta": 2.8,
+                                                       "Range": 0.1,
+                                                       "TS": 20},
+                                                       {"Alpha": 2.8,
+                                                       "Beta": 2.8,
+                                                       "Range": 0.1,
+                                                       "TS": 20},
+                                                       {"Alpha": 2.8,
+                                                       "Beta": 2.8,
+                                                       "Range": 0.1,
+                                                       "TS": 20},
+                                                       {"Alpha": 2.8,
+                                                       "Beta": 2.8,
+                                                       "Range": 0.1,
+                                                       "TS": 20},
+                                                       {"Alpha": 2.8,
+                                                       "Beta": 2.8,
+                                                       "Range": 0.1,
+                                                       "TS": 20}],
+                 'InitiationMinLength':            ["1","1","1","1","1"],
+                 'GateFunction':                   [{
+                                                       "Alpha": 2.8,
+                                                       "Beta": 2.8,
+                                                       "Range": 0.1,
+                                                       "TS": 20},
+                                                       {"Alpha": 2.8,
+                                                       "Beta": 2.8,
+                                                       "Range": 0.1,
+                                                       "TS": 20},
+                                                       {"Alpha": 2.8,
+                                                       "Beta": 2.8,
+                                                       "Range": 0.1,
+                                                       "TS": 20},
+                                                       {"Alpha": 2.8,
+                                                       "Beta": 2.8,
+                                                       "Range": 0.1,
+                                                       "TS": 20},
+                                                       {"Alpha": 2.8,
+                                                       "Beta": 2.8,
+                                                       "Range": 0.1,
+                                                       "TS": 20}],
+                 'AlphaBetaEstimator':             [{
+                                                       "Alpha": 0.9,
+                                                       "Beta": 0.1},
+                                                       {
+                                                       "Alpha": 0.9,
+                                                       "Beta": 0.1},
+                                                       {
+                                                       "Alpha": 0.9,
+                                                       "Beta": 0.1},
+                                                       {
+                                                       "Alpha": 0.9,
+                                                       "Beta": 0.1},
+                                                       {
+                                                       "Alpha": 0.9,
+                                                       "Beta": 0.1}
+                                                   ],
+                 'MaxMissingPings':                ["4","4","4","4","4"],
+                 'MaxMissingSamples':              ["2","2","2","2","2"],
+                 'MaxMissingPingsFraction':        ["0.7","0.7","0.7","0.7","0.7"],
+                 'MinTrackLength':                 ["8","8","8","8","8"],
+                 'MinSampleToLengthFraction':      ["0.5","0.5","0.5","0.5","0.5"]}
 
-trackingParams = {'Active': ["true", "true", "true", "true", "true"],
-                  'TrackerType': ["Peak", "Peak", "Peak", "Peak", "Peak"],
-                  'kHz': ["38", "70", "120", "200", "333"],
-                  'PlatformMotionType': ["Floating", "Floating", "Floating", "Floating", "Floating"],
-                  'MinTS': ["-50", "-50", "-50", "-50", "-50"],
-                  'PulseLengthDeterminationLevel': ["50", "50", "50", "50", "50"],
-                  'MinEchoLength': ["0", "0", "0", "0", "0"],
-                  'MaxEchoLength': ["1", "1", "1", "1", "1"],
-                  'MaxGainCompensation': ["18", "18", "18", "18", "18"],
-                  'DoPhaseDeviationCheck': ["false", "false", "false", "false", "false"],
-                  'MaxPhaseDevSteps': ["10", "10", "10", "10", "10"],
-                  'MaxTS': ["0", "0", "0", "0", "0"],
-                  'MaxDepth': ["22", "22", "22", "22", "22"],  # Must be determined per dataset
-                  'MaxAlongshipAngle': ["10", "10", "10", "10", "10"],
-                  'MaxAthwartshipAngle': ["10", "10", "10", "10", "10"],
-                  'InitiationGateFunction': [{
-                      "Alpha": 2.8,
-                      "Beta": 2.8,
-                      "Range": 0.1,
-                      "TS": 20},
-                      {"Alpha": 2.8,
-                       "Beta": 2.8,
-                       "Range": 0.1,
-                       "TS": 20},
-                      {"Alpha": 2.8,
-                       "Beta": 2.8,
-                       "Range": 0.1,
-                       "TS": 20},
-                      {"Alpha": 2.8,
-                       "Beta": 2.8,
-                       "Range": 0.1,
-                       "TS": 20},
-                      {"Alpha": 2.8,
-                       "Beta": 2.8,
-                       "Range": 0.1,
-                       "TS": 20}],
-                  'InitiationMinLength': ["1", "1", "1", "1", "1"],
-                  'GateFunction': [{
-                      "Alpha": 2.8,
-                      "Beta": 2.8,
-                      "Range": 0.1,
-                      "TS": 20},
-                      {"Alpha": 2.8,
-                       "Beta": 2.8,
-                       "Range": 0.1,
-                       "TS": 20},
-                      {"Alpha": 2.8,
-                       "Beta": 2.8,
-                       "Range": 0.1,
-                       "TS": 20},
-                      {"Alpha": 2.8,
-                       "Beta": 2.8,
-                       "Range": 0.1,
-                       "TS": 20},
-                      {"Alpha": 2.8,
-                       "Beta": 2.8,
-                       "Range": 0.1,
-                       "TS": 20}],
-                  'AlphaBetaEstimator': [{
-                      "Alpha": 0.9,
-                      "Beta": 0.1},
-                      {
-                          "Alpha": 0.9,
-                          "Beta": 0.1},
-                      {
-                          "Alpha": 0.9,
-                          "Beta": 0.1},
-                      {
-                          "Alpha": 0.9,
-                          "Beta": 0.1},
-                      {
-                          "Alpha": 0.9,
-                          "Beta": 0.1}
-                  ],
-                  'MaxMissingPings': ["4", "4", "4", "4", "4"],
-                  'MaxMissingSamples': ["2", "2", "2", "2", "2"],
-                  'MaxMissingPingsFraction': ["0.7", "0.7", "0.7", "0.7", "0.7"],
-                  'MinTrackLength': ["8", "8", "8", "8", "8"],
-                  'MinSampleToLengthFraction': ["0.5", "0.5", "0.5", "0.5", "0.5"]}
-
-for _dataset in df['dataset'][2:3]:
-    print(_dataset)
+for _dataset in df['dataset'][8:]:
     inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                             _dataset, 'ACOUSTIC',
                             'EK80', 'EK80_RAWDATA')
@@ -467,16 +496,16 @@ for _dataset in df['dataset'][2:3]:
                              _dataset, 'ACOUSTIC',
                              'LSSS', 'KORONA')
     griddeddir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
-                        _dataset, 'ACOUSTIC', 'GRIDDED')
+                              _dataset, 'ACOUSTIC', 'GRIDDED')
 
     if os.path.exists(inputdir):
-        print(inputdir)
-        print(koronadir)
-        # raw2pc(inputdir, koronadir)
         paths = {'inputdir': inputdir,
                  'outputdir': koronadir,
                  'trranges': pathTRanges}
         raw2track(paths, trackingParams)
-        track2nc(inputdir=koronadir,
-                 outputdir=koronadir)  # convert track data to netcdf, save in korona directory
-        track2png(griddeddir, koronadir)  # plot and save track data
+
+        # Save tracks in nc-file
+        track2nc(inputdir=koronadir, outputdir=koronadir)
+
+        # Plot tracks
+        track2png(griddeddir, koronadir)
