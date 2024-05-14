@@ -4,7 +4,7 @@ from tqdm import tqdm
 
 
 """"
-Copyright 2021 the Norwegian Computing Center
+Copyright 2021 the Norwegian Computing Center, Institute of marine research
 
 This library is free software; you can redistribute it and/or
 modify it under the terms of the GNU Lesser General Public
@@ -25,8 +25,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 # copy of the $CRIMACSCRATCH.
 
 
-def boto3download(host, access_key, secret_key, bucketname, s3folder, savefolder):
-    s3 = boto3.resource('s3', aws_access_key_id=access_key, aws_secret_access_key=secret_key, region_name='us-east-1',
+def boto3download(host, access_key, secret_key,
+                  bucketname, s3folder, savefolder):
+    s3 = boto3.resource('s3',
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key,
+                        region_name='us-east-1',
                         endpoint_url=host, )
     bucket = s3.Bucket(bucketname)
 
@@ -40,7 +44,7 @@ def boto3download(host, access_key, secret_key, bucketname, s3folder, savefolder
         if not os.path.exists(dirname):
             os.makedirs(dirname)
         # print(path)
-        # Skip files that have ~ in them (stupid windows stuff)
+        # Skip files that have ~ in them
         directory, filename = os.path.split(path)
         if filename[0] == '~':
             pbar.set_description(f"Tilde in file name; skipping {path}")
@@ -61,7 +65,10 @@ def show_folders(host, access_key, secret_key, bucketname, s3folder):
     :param s3folder:
     :return:
     """
-    s3 = boto3.resource('s3', aws_access_key_id=access_key, aws_secret_access_key=secret_key, region_name='us-east-1',
+    s3 = boto3.resource('s3',
+                        aws_access_key_id=access_key,
+                        aws_secret_access_key=secret_key,
+                        region_name='us-east-1',
                         endpoint_url=host, )
 
     bucket = s3.Bucket(bucketname)
@@ -106,7 +113,7 @@ secret_key = "9!%L*h7Q"  # Password
 bucketname = 'crimac-scratch'  # s3 bucket
 
 s3folder = 'gpfs0-crimac-scratch/CRIMAC-FM-testdata/'  # all s3  crimac folders at HI start with gpfs0-crimac-scratch/
-savefolder = os.getenv('CRIMACSCRATCH')
+savefolder = os.environ['CRIMACSCRATCH']
 
 # for s3folder in data:
 show_folders(host, access_key, secret_key, bucketname, s3folder)

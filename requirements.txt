@@ -6,4 +6,4 @@ matplotlib~=3.8.4
 pandas~=2.2.2
 netCDF4==1.6.5
 numpy~=1.26.4
-ektools~=0.1
+ektools~=0.1.1

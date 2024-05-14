@@ -14,6 +14,7 @@ def listfilesbytype(d, ft):
     else:
         print(d+' does not exist.')    
 
+
 # Read metadata & env variables
 df = pd.read_csv('testdata.csv')
 crimac = os.getenv('CRIMACSCRATCH')
@@ -30,21 +31,36 @@ for _dataset in df['dataset']:
     else:
         print(data_path + ' is missing')
 
-# Raw files
+# List files
 for _dataset in df['dataset']:
-    data_path = os.path.join(crimac, _dataset[1:5], _dataset)
+    data_path = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5], _dataset)
+    print(' ')
+    print(_dataset)
     if os.path.exists(data_path):
+
+        # List raw data files
         raw = os.path.join(data_path, 'ACOUSTIC', 'EK80', 'EK80_RAWDATA')
         print(raw)
         raw_ft = ['.raw', '.idx', '.bot', '.xml', '.*']
         listfilesbytype(raw, raw_ft)
 
-        work = os.path.join(data_path, 'ACOUSTIC', 'LSSS', 'WORK')
-        print(work)
-        work_ft = ['.work', '.snap', '.*']
-        #listfilesbytype(work, work_ft)
+        # List calibration files
+        if os.path.isfile(os.path.join(raw, 'calibration.xml')):
+            print('File    : calibration.xml -> exist')
+        if os.path.isfile(os.path.join(raw, 'TrList_calibration.xml')):
+            print('File    : Trlist_calibration.xml -> exist')
+            
+        # List work files
+        # work = os.path.join(data_path, 'ACOUSTIC', 'LSSS', 'WORK')
+        # print(work)
+        # work_ft = ['.work', '.snap', '.*']
+        # listfilesbytype(work, work_ft)
 
-        pc = os.path.join(data_path, 'ACOUSTIC', 'GRIDDED', 'pc')
-        print(pc)
-        pc_ft = ['.nc', '.*']
-        listfilesbytype(pc, pc_ft)
+        # List pc and png files
+        griddir = os.path.join(data_path, 'ACOUSTIC', 'GRIDDED')
+        _griddir = os.listdir(griddir)
+        for _pcdir in _griddir:
+            pc = os.path.join(griddir, _pcdir)
+            print(pc)
+            pc_ft = ['.nc', '.png', '.*']
+            listfilesbytype(pc, pc_ft)
