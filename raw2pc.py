@@ -113,6 +113,7 @@ def raw2pc(inputdir, outputdir, channels, comments, MainFrequency):
         # Run KoronaScript
         ksi.run(src=inputdir, dst=outputdir)
 
+
     # Remove temporary korona files
     kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.*')]
 
