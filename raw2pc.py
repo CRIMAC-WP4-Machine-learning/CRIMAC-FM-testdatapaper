@@ -21,8 +21,6 @@ def raw2pc(inputdir, outputdir):
     # Instanitate the class
     ksi = ks.KoronaScript()
 
-    # Add emptypingremoval module
-    ksi.add(ksm.EmptyPingRemoval())
     # Add the pulsecompression module and write to nc
     ksi.add(ksm.NetcdfWriter(Active = "true",
                              DirName = "pc",
@@ -49,7 +47,11 @@ def pc2png(outputdir):
         # Assume that the group from the firs data set is similar across all nc files
         nc_dataset = Dataset(ncfiles[0], "r")
         grp = list(nc_dataset.groups.keys())
-        data = [xr.open_mfdataset(ncfiles, engine='netcdf4', group=_grp)
+
+        # I can't get open_mfdataset to work. anyone?
+        #data = [xr.open_mfdataset(ncdir, engine='netcdf4', group=_grp)
+        #        for _grp in grp if not _grp == 'Environment']
+        data = [xr.open_dataset(ncfiles[0], engine='netcdf4', group=_grp)
                 for _grp in grp if not _grp == 'Environment']
         
         for _data in data:
