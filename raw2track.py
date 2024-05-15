@@ -168,103 +168,112 @@ def index(f):
 
     return idx
 
-def track2nc(inputdir, outputdir):
-    # get raw files
-    raw_files = [os.path.join(inputdir, f) for f in os.listdir(inputdir) if f.endswith('.raw')]
-    assert len(raw_files) > 0, f"No Korona raw files found in {inputdir}"
 
-    t_infos = []
-    t_borders = []
-    for raw_file in raw_files:
-        # The frequencies are needed to convert the channel index to frequency. Is there an easier way to read them?
-        transducer_frequencies = []
-        for pos, typ, length, msg in index(raw_file):
-            # Read frequencies
-            if len(transducer_frequencies) == 0 and typ == "XML0":
-                parser = SimradXMLParser()
-                parsed_datagram = parser._unpack_contents(msg, length, 0)
-                for freq in parsed_datagram['configuration']:
-                    transducer_frequencies.append(float(parsed_datagram['configuration'][freq]['transducer_frequency']))
-                transducer_frequencies = np.array(sorted(transducer_frequencies))
+def track2nc(_inputdir, _outputdir, channels):
+    for channel in channels:
+        inputdir = os.path.join(_inputdir, 'track_'+channel)
+        outputdir = os.path.join(_outputdir, 'track_'+channel)
 
-            # If datagram type is related to tracking
-            if typ == 'TBR0':
-                parser = SimradTrackBorderParser()
-                parsed_datagram = parser._unpack_contents(msg, length)
-                t_borders.append(parsed_datagram)
-            elif typ == 'TNF0':
-                parser = SimradTrackInfoParser()
-                parsed_datagram = parser._unpack_contents(msg, length)
-                t_infos.append(parsed_datagram)
+        # get raw files
+        raw_files = [os.path.join(inputdir, f) for f in os.listdir(inputdir) if f.endswith('.raw')]
+        assert len(raw_files) > 0, f"No Korona raw files found in {inputdir}"
 
-        if len(t_borders) == 0:
-            # create empty netcdf file
+        t_infos = []
+        t_borders = []
+        for raw_file in raw_files:
+            # The frequencies are needed to convert the channel index to frequency. Is there an easier way to read them?
+            transducer_frequencies = np.array(channels[channel]['transducer_frequency'], dtype=int)
+            
+            # Extract data from korona file
+            for pos, typ, length, msg in index(raw_file):
+                # If datagram type is related to tracking
+                if typ == 'TBR0':
+                    parser = SimradTrackBorderParser()
+                    parsed_datagram = parser._unpack_contents(msg, length)
+                    t_borders.append(parsed_datagram)
+                elif typ == 'TNF0':
+                    parser = SimradTrackInfoParser()
+                    parsed_datagram = parser._unpack_contents(msg, length)
+                    t_infos.append(parsed_datagram)
+
+            if len(t_borders) == 0:
+                # create empty netcdf file (why dont you do this before the for loop?)
+                ds = xr.Dataset(
+                    {
+                        'ping_time': (['i'], []),
+                        'single_target_identifier': (['i'], []),
+                        'single_target_start_range': (['i'], []),
+                        'single_target_stop_range': (['i'], []),
+                        'single_target_range': (['i'], []),
+                        'frequency': (['i'], [])
+                    },
+                    coords={"i": (['i'], [])}
+                )
+                # Save xarray to netcdf
+                save_path = os.path.join(outputdir, os.path.split(
+                    raw_file)[1].replace('.raw', '.nc'))
+                ds.to_netcdf(os.path.join(outputdir, save_path))
+                continue
+
+            # Retrieve tracking border datagrams and add to polars dataframe
+            df_tracking_border = pl.DataFrame(t_borders)
+                
+            # Retrieve tracking info datagrams and add to polars dataframe
+            df_tracking_info = pl.DataFrame(t_infos)
+
+            # Remove targets that are not valid according to tracking info datagrams
+            df_tracking_border = df_tracking_border.join(
+                df_tracking_info[['id', 'valid']], on='id', how='inner')
+            df_tracking_border.drop_in_place('valid')
+            del df_tracking_info
+
+            # convert to standard name format
+            df_tracking_border = df_tracking_border.rename(
+                {"id": "single_target_identifier",
+                 "timestamp": "ping_time",
+                 "channel": "frequency_index",
+                 "minDepth": "single_target_start_range",
+                 "maxDepth": "single_target_stop_range",
+                 "peakDepth": "single_target_range"})
+    
+            df_tracking_border = df_tracking_border.with_columns(pl.col(
+                "ping_time").dt.cast_time_unit('ns'))
+            
+
+            # Add the frequency
+            frequency_index = df_tracking_border['frequency_index'].to_numpy()
+            df_tracking_border = df_tracking_border.with_columns(
+                pl.Series(name='frequency',
+                          values=transducer_frequencies[frequency_index - 1]))
+
+            # Add the number of targets in each ping
+            # NB not in use, this would require ping_time as a dimension in the xarray dataset
+            # df_tracking_border = df_tracking_border.with_columns(pl.len().over('ping_time').alias('single_target_count'))
+
+            # Create xarray dataset
             ds = xr.Dataset(
                 {
-                    'ping_time': (['i'], []),
-                    'single_target_identifier': (['i'], []),
-                    'single_target_start_range': (['i'], []),
-                    'single_target_stop_range': (['i'], []),
-                    'single_target_range': (['i'], []),
-                    'frequency': (['i'], [])
+                    # 'single_target_alongship_angle': (['i'], single_target_alongship_angle),
+                    # 'single_target_athwartship_angle': (['i'], single_target_athwartship_angle),
+                    'ping_time': (['i'], df_tracking_border['ping_time'].to_numpy()),
+                    'single_target_identifier': (['i'], df_tracking_border[
+                        'single_target_identifier'].to_numpy()),
+                    'single_target_start_range': (['i'], df_tracking_border[
+                        'single_target_start_range'].to_numpy()),
+                    'single_target_stop_range': (['i'], df_tracking_border[
+                        'single_target_stop_range'].to_numpy()),
+                    'single_target_range': (['i'], df_tracking_border[
+                        'single_target_range'].to_numpy()),
+                    'frequency': (['i'], df_tracking_border[
+                        'frequency'].to_numpy())
                 },
-                coords={"i": (['i'], [])}
+                coords={"i": (['i'], np.arange(len(df_tracking_border)))}
             )
 
             # Save xarray to netcdf
             save_path = os.path.join(outputdir, os.path.split(raw_file)[1].replace('.raw', '.nc'))
             ds.to_netcdf(os.path.join(outputdir, save_path))
-            continue
 
-        # Retrieve tracking border datagrams and add to polars dataframe
-        df_tracking_border = pl.DataFrame(t_borders)
-
-        # Retrieve tracking info datagrams and add to polars dataframe
-        df_tracking_info = pl.DataFrame(t_infos)
-
-        # Remove targets that are not valid according to tracking info datagrams
-        df_tracking_border = df_tracking_border.join(df_tracking_info[['id', 'valid']], on='id', how='inner')
-        df_tracking_border.drop_in_place('valid')
-        del df_tracking_info
-
-        # convert to standard name format
-        df_tracking_border = df_tracking_border.rename({"id": "single_target_identifier",
-                                                        "timestamp": "ping_time",
-                                                        "channel": "frequency_index",
-                                                        "minDepth": "single_target_start_range",
-                                                        "maxDepth": "single_target_stop_range",
-                                                        "peakDepth": "single_target_range",
-                                                        })
-
-        df_tracking_border = df_tracking_border.with_columns(pl.col("ping_time").dt.cast_time_unit('ns'))
-
-        # Add the frequency
-        frequency_index = df_tracking_border['frequency_index'].to_numpy()
-        df_tracking_border = df_tracking_border.with_columns(
-            pl.Series(name='frequency', values=transducer_frequencies[frequency_index - 1]))
-
-        # Add the number of targets in each ping
-        # NB not in use, this would require ping_time as a dimension in the xarray dataset
-        # df_tracking_border = df_tracking_border.with_columns(pl.len().over('ping_time').alias('single_target_count'))
-
-        # Create xarray dataset
-        ds = xr.Dataset(
-            {
-                # 'single_target_alongship_angle': (['i'], single_target_alongship_angle),
-                # 'single_target_athwartship_angle': (['i'], single_target_athwartship_angle),
-                'ping_time': (['i'], df_tracking_border['ping_time'].to_numpy()),
-                'single_target_identifier': (['i'], df_tracking_border['single_target_identifier'].to_numpy()),
-                'single_target_start_range': (['i'], df_tracking_border['single_target_start_range'].to_numpy()),
-                'single_target_stop_range': (['i'], df_tracking_border['single_target_stop_range'].to_numpy()),
-                'single_target_range': (['i'], df_tracking_border['single_target_range'].to_numpy()),
-                'frequency': (['i'], df_tracking_border['frequency'].to_numpy())
-            },
-            coords={"i": (['i'], np.arange(len(df_tracking_border)))}
-        )
-
-        # Save xarray to netcdf
-        save_path = os.path.join(outputdir, os.path.split(raw_file)[1].replace('.raw', '.nc'))
-        ds.to_netcdf(os.path.join(outputdir, save_path))
 
 def track2png(pcdir, koronadir):
     # List NC files
@@ -354,7 +363,7 @@ crimac = os.getenv('CRIMACSCRATCH')
 # Define input parameters
 pathTRanges = os.path.join(crimac, 'CRIMAC-FM-testdata', 'TransducerRanges.xml')
 
-for _dataset in df['dataset'][0:11]:
+for _dataset in df['dataset'][0:2]:
     inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                             _dataset, 'ACOUSTIC',
                             'EK80', 'EK80_RAWDATA')
@@ -392,7 +401,7 @@ for _dataset in df['dataset'][0:11]:
         raw2track(paths, channels)
 
         # Save tracks in nc-file
-        #track2nc(inputdir=koronadir, outputdir=koronadir)
+        track2nc(koronadir, koronadir, channels)
 
         # Plot tracks
         #track2png(griddeddir, koronadir)
