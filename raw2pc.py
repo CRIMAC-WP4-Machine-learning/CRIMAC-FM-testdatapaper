@@ -8,8 +8,8 @@ import glob
 import pandas as pd
 from matplotlib.colors import LogNorm
 from netCDF4 import Dataset
-import ektools as E
-import ektools.actions as A
+import raw2meta as rm
+
 """
 
 This example reads the specified test set (e.g. T2023001), applies pulse compression and stores 
@@ -18,63 +18,7 @@ the results as an netcdf. the NetCDF file is read and the pulse compressed data 
 """
 
 
-def raw2meta(inputdir):
-    """
-
-    Raw2meta parse the raw file using ektools and extracts the ping groups, if
-    applicable. This is needed when ping sequencing are used or when different
-    transducers are multiplexed. A separate nc files with pulse compressed data
-    are generated with all the channels for the specific ping group.
-
-    """
-    
-    rawf = [_f for _f in os.listdir(inputdir) if os.path.splitext(
-        _f)[-1] == '.raw']
-    # Read the index from the first raw file
-    ix = E.index(os.path.join(inputdir, rawf[0]))
-    
-    # Parse the index from the raw file
-    ind = E.parse(ix[1][3])
-    
-    channels = {}
-    comments = {}
-    # Loop over the different ping groups when the key ['initialparameter'] exists
-    if 'initialparameter' in ind:
-        ind_par = ind['initialparameter']
-        ind_par.keys()
-        _channels = list(range(1, len(ind_par)+1))  # Channels are counted from 1
-        ping_id = [ind_par[i]['ping_id'] for i in list(ind_par.keys())]
-        pulse_duration = [ind_par[i]['pulse_duration']*1000 for i in list(
-            ind_par.keys())]
-        _pulse_form = [ind_par[i]['pulse_form'] for i in list(ind_par.keys())]
-        pulse_form = ['FM' if x == 1 else 'CW' for x in _pulse_form]
-        slope = [ind_par[i]['slope'] for i in list(ind_par.keys())]
-        # Split into unique ping groups
-        for _ping_id in list(dict.fromkeys(ping_id)):
-            channels[_ping_id] = [_channel
-                                  for i, _channel
-                                  in enumerate(_channels)
-                                  if ping_id[i] == _ping_id]
-            comments[_ping_id] = [pulse_form[i]+'_'+str(
-                pulse_duration[i]).replace('.', '')+'ms_0'+str(
-                    slope[i]).split('.')[1]+'taper'
-                                  for i, test
-                                  in enumerate(_channels)
-                                  if ping_id[i] == _ping_id]
-            
-    elif 'channel_id' in ind:  # This is the used when no 'initialparameter' is found, e.g. wbat data
-        channels['1'] = 1
-        comments['1'] = ind['channel_id'].decode().replace(' ', '_')
-    else:
-        # This is the case when no 'initialparameter' or 'channel_is' are
-        # found in the data file
-        print('Key not in dic for '+inputdir)
-        channels = None
-        comments = None
-    return channels, comments, ind
-
-
-def raw2pc(inputdir, outputdir, channels, comments, MainFrequency):
+def raw2pc(inputdir, outputdir, channels):
     
     """
 
@@ -84,9 +28,14 @@ def raw2pc(inputdir, outputdir, channels, comments, MainFrequency):
     """
     
     # Loop over the different ping groups
-    for name, channel, comment in zip(channels, channels.values(), comments.values()):
+    for channel in channels:
         print(' ')
-        print('Processing pc_'+name+': raw2pc')
+        name = channels[channel]['channel_names']
+        # just pick the first frequency in the file as the main freq
+        MainFrequency = channels[channel]['transducer_frequency'][0] // 1000
+        
+        comment = 'Processing pc_'+channel+' consisting of '+str(name)
+        print(comment)
         
         # Instantiate the class
         ksi = ks.KoronaScript()
@@ -98,9 +47,8 @@ def raw2pc(inputdir, outputdir, channels, comments, MainFrequency):
         # Remove channels
         ksi.add(ksm.ChannelRemoval(Channels=channel, KeepSpecified='true'))
         # Add the pulsecompression module and write to nc
-            
         ksi.add(ksm.NetcdfWriter(Active = "true",
-                                 DirName = 'pc_'+name, # "pc", # Use channel?
+                                 DirName = 'pc_'+channel,
                                  MainFrequency = str(MainFrequency),
                                  WriterType = "CHANNEL_GROUPS",
                                  GriddedOutputType = "PULSE_COMPRESSION",
@@ -113,9 +61,8 @@ def raw2pc(inputdir, outputdir, channels, comments, MainFrequency):
         # Run KoronaScript
         ksi.run(src=inputdir, dst=outputdir)
 
-
-    # Remove temporary korona files
-    kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.*')]
+        # Remove temporary korona files
+        kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.*')]
 
 
 def pc2png(outputdir, channels):
@@ -181,18 +128,14 @@ for _dataset in df['dataset']:
         print(outputdir)
         print(' ')
         print('Extract metadata:')
-        channels, comments, ind = raw2meta(inputdir)
+        channels, con, ind = rm.raw2meta(inputdir)
         print('channels per ping group:')
         print(channels)
-        print('Comments:')
-        print(comments)
-        print(' ')
         print('Raw index information:')
         print(ind)
         print(' ')
         print('*****************raw2pc****************************')
-        raw2pc(inputdir, outputdir, channels, comments,
-               df['MainFrequency'][i])
+        raw2pc(inputdir, outputdir, channels)
         print(' ')
         print('*****************pc2png****************************')
         pc2png(outputdir, channels)
