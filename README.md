@@ -35,7 +35,7 @@ The `check_data.py` parses key diretories and count files by file extension per 
 ## Script for test data processing
 
 
-### raw2.pc.py - Convert raw data to pulse compressed data
+### raw2pc.py - Convert raw data to pulse compressed data
 
 Script to convert raw data to pulse compressed data in netcdf format.
 

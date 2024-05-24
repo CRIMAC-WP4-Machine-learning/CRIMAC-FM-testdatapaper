@@ -363,7 +363,7 @@ crimac = os.getenv('CRIMACSCRATCH')
 # Define input parameters
 pathTRanges = os.path.join(crimac, 'CRIMAC-FM-testdata', 'TransducerRanges.xml')
 
-for _dataset in df['dataset'][0:2]:
+for _dataset in df['dataset']:
     inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                             _dataset, 'ACOUSTIC',
                             'EK80', 'EK80_RAWDATA')
