@@ -9,7 +9,7 @@ This repository contains code to dowlonad, process and visluaize the IMR test da
 
 You will need a working installation of Korona and python. It is also recommended to use git for obtaining the latest updates.
 
-The required python libraries are listed in the [requirements.txt](requirements.txt) file. To install the packages you can run `pip install -r requirements.txt`.
+The required python libraries are listed in the [requirements.txt](requirements.txt) file. To install the packages you can run `pip install -r requirements.txt` from the terminal.
 
 ### Environmental variables
 
