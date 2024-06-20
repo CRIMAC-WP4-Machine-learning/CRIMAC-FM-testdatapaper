@@ -23,7 +23,7 @@ def raw2pc(inputdir, outputdir, channels):
     """
 
     Raw2pc convert the raw files to pulse compressed files (when applicable) 
-    for each ping group using korona and KoroanScript.
+    for each ping group using korona and KoronaScript.
 
     """
     
@@ -39,16 +39,17 @@ def raw2pc(inputdir, outputdir, channels):
         
         # Instantiate the class
         ksi = ks.KoronaScript()
-        # Add emptypingremoval module
-        ksi.add(ksm.EmptyPingRemoval())
+       
 
         # Add comment
         ksi.add(ksm.Comment(LineBreak='false', Label=comment))
         # Remove channels
-        ksi.add(ksm.ChannelRemoval(Channels=channel, KeepSpecified='true'))
+        ksi.add(ksm.ChannelRemoval(Channels=channels[channel]['channels'], KeepSpecified='true'))
+         # Add emptypingremoval module
+        ksi.add(ksm.EmptyPingRemoval())
         # Add the pulsecompression module and write to nc
         ksi.add(ksm.NetcdfWriter(Active = "true",
-                                 DirName = 'pc_'+channel,
+                                 DirName = 'pc_'+str(channel),
                                  MainFrequency = str(MainFrequency),
                                  WriterType = "CHANNEL_GROUPS",
                                  GriddedOutputType = "PULSE_COMPRESSION",
@@ -109,7 +110,7 @@ df = pd.read_csv('testdata.csv')
 crimac = os.getenv('CRIMACSCRATCH')
 
 # Print the current test data sets
-i = 0
+# i = 0
 for _dataset in df['dataset']:
     inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                             _dataset, 'ACOUSTIC',
@@ -138,7 +139,7 @@ for _dataset in df['dataset']:
         raw2pc(inputdir, outputdir, channels)
         print(' ')
         print('*****************pc2png****************************')
-        pc2png(outputdir, channels)
-        i += 1
+        # pc2png(outputdir, channels)
+        # i += 1
         print(' ')
         print(' ')
