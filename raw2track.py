@@ -178,12 +178,14 @@ def track2nc(_inputdir, _outputdir, channels):
         raw_files = [os.path.join(inputdir, f) for f in os.listdir(inputdir) if f.endswith('.raw')]
         assert len(raw_files) > 0, f"No Korona raw files found in {inputdir}"
 
-        t_infos = []
-        t_borders = []
+        _channels = channels[channel]['channels']
+        _transducer_frequencies = channels[channel]['transducer_frequency']
+
         for raw_file in raw_files:
-            # The frequencies are needed to convert the channel index to frequency. Is there an easier way to read them?
-            transducer_frequencies = np.array(channels[channel]['transducer_frequency'], dtype=int)
-            
+
+            t_infos = []
+            t_borders = []
+
             # Extract data from korona file
             for pos, typ, length, msg in index(raw_file):
                 # If datagram type is related to tracking
@@ -244,7 +246,7 @@ def track2nc(_inputdir, _outputdir, channels):
             frequency_index = df_tracking_border['frequency_index'].to_numpy()
             df_tracking_border = df_tracking_border.with_columns(
                 pl.Series(name='frequency',
-                          values=transducer_frequencies[frequency_index - 1]))
+                          values=_transducer_frequencies[frequency_index - 1]))
 
             # Add the number of targets in each ping
             # NB not in use, this would require ping_time as a dimension in the xarray dataset
@@ -281,6 +283,10 @@ def track2png(pcdir, koronadir):
     ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
 
     assert len(ncfiles) > 0, f"No NetCDF files found in {ncdir}"
+    #
+    # for channel in channels:
+    #     for
+
 
     for ncfile in ncfiles:
         # Read track dataframe
@@ -357,6 +363,7 @@ def track2png(pcdir, koronadir):
 
 
 # Read metadata & env variables
+
 df = pd.read_csv('testdata.csv')#[0:11]
 crimac = os.getenv('CRIMACSCRATCH')
 
