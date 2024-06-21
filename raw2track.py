@@ -363,12 +363,10 @@ def track2png(pcdir, koronadir, channels):
 df = pd.read_csv('testdata.csv')#[0:11]
 crimac = os.getenv('CRIMACSCRATCH')
 
-assert os.path.isfile(os.path.join(crimac, "CRIMAC-FM-testdata", "TransducerRanges.xml")), "TransducerRanges.xml not found"
-
 # Define input parameters
 pathTRanges = os.path.join(crimac, 'CRIMAC-FM-testdata', 'TransducerRanges.xml')
 
-for _dataset in df['dataset'][4:]:
+for _dataset in df['dataset']:
     inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                             _dataset, 'ACOUSTIC',
                             'EK80', 'EK80_RAWDATA')
@@ -378,7 +376,6 @@ for _dataset in df['dataset'][4:]:
     griddeddir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                               _dataset, 'ACOUSTIC', 'GRIDDED')
     # Loop over all combinations of griddeddirs
-
 
     if os.path.exists(inputdir):
         print('***************************************************')
@@ -404,15 +401,13 @@ for _dataset in df['dataset'][4:]:
         print(ind)
         print(' ')
         print('*****************raw2track**************************')
-        #raw2track(paths, channels)
+        raw2track(paths, channels)
 
         # Save tracks in nc-file
-        print('\n*****************track2nc**************************')
-        #track2nc(koronadir, koronadir, channels)
+        track2nc(koronadir, koronadir, channels)
 
         # Plot tracks
-        print('\n*****************track2png**************************')
-        track2png(griddeddir, koronadir, channels)
+        #track2png(griddeddir, koronadir)
 
         print(' ')
         print(' ')
