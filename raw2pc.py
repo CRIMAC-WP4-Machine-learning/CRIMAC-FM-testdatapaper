@@ -16,7 +16,50 @@ This example reads the specified test set (e.g. T2023001), applies pulse compres
 the results as an netcdf. the NetCDF file is read and the pulse compressed data are plotted.
 
 """
+def configuration(configdir):
+    pathConfig = {
+        # 'ModuleConfiguration' : None, # cds file name, attrib 'ref' points to...what?
+        #   <parameter name="ModuleConfiguration" ref="CfsDirectory">CW.cds</parameter>
+        # The following are None, or point to xml files (contents unknown)
+        'Categorization' : None,
+        'HorizontalTransducerOffsets' : None,
+        'VerticalTransducerOffsets' : None,
+        'TransducerRanges' : None,
+        'Plankton' : None,
+        'BroadbandNotchFilters' : None,
+        'PulseCompressionFilters' : None,
+        'BroadbandSplitterBands' : None,
+        'Towfish' : None,
+    }
 
+    if os.path.exists(os.path.join(configdir, 'Categorization.xml')):
+        pathConfig['Categorization'] = os.path.join(configdir, 'Categorization.xml')
+
+    if os.path.exists(os.path.join(configdir, 'HorizontalTransducerOffsets.xml')):
+        pathConfig['HorizontalTransducerOffsets'] = os.path.join(configdir, 'HorizontalTransducerOffsets.xml')
+
+    if os.path.exists(os.path.join(configdir, 'VerticalTransducerOffsets.xml')):
+        pathConfig['VerticalTransducerOffsets'] = os.path.join(configdir, 'VerticalTransducerOffsets.xml')
+
+    if os.path.exists(os.path.join(configdir, 'TransducerRanges.xml')):
+        pathConfig['TransducerRanges'] = os.path.join(configdir, 'TransducerRanges.xml')
+
+    if os.path.exists(os.path.join(configdir, 'Plankton.xml')):
+        pathConfig['Plankton'] = os.path.join(configdir, 'Plankton.xml')
+
+    if os.path.exists(os.path.join(configdir, 'BroadbandNotchFilters.xml')):
+        pathConfig['BroadbandNotchFilters'] = os.path.join(configdir, 'BroadbandNotchFilters.xml')
+
+    if os.path.exists(os.path.join(configdir, 'PulseCompressionFilters.xml')):
+        pathConfig['PulseCompressionFilters'] = os.path.join(configdir, 'PulseCompressionFilters.xml')
+
+    if os.path.exists(os.path.join(configdir, 'BroadbandSplitterBands.xml')):
+        pathConfig['BroadbandSplitterBands'] = os.path.join(configdir, 'BroadbandSplitterBands.xml')
+
+    if os.path.exists(os.path.join(configdir, 'Towfish.xml')):
+        pathConfig['Towfish'] = os.path.join(configdir, 'Towfish.xml')
+
+    return pathConfig
 
 def raw2pc(inputdir, outputdir, channels):
     
@@ -26,7 +69,8 @@ def raw2pc(inputdir, outputdir, channels):
     for each ping group using korona and KoronaScript.
 
     """
-    
+    pathConfig = configuration(inputdir)
+
     # Loop over the different ping groups
     for channel in channels:
         print(' ')
@@ -38,9 +82,19 @@ def raw2pc(inputdir, outputdir, channels):
         print(comment)
         
         # Instantiate the class
-        ksi = ks.KoronaScript()
+        ksi = ks.KoronaScript(Categorization = pathConfig['Categorization'],                              
+                              HorizontalTransducerOffsets = pathConfig['HorizontalTransducerOffsets'],
+                              VerticalTransducerOffsets = pathConfig['VerticalTransducerOffsets'],
+                              TransducerRanges = pathConfig['TransducerRanges'],
+                              Plankton = pathConfig['Plankton'],
+                              BroadbandNotchFilters = pathConfig['BroadbandNotchFilters'],
+                              PulseCompressionFilters = pathConfig['PulseCompressionFilters'],
+                              BroadbandSplitterBands = pathConfig['BroadbandSplitterBands'],
+                              Towfish = pathConfig['Towfish']
+                              )
        
-
+        # Add emptypingremoval module
+        ksi.add(ksm.EmptyPingRemoval())
         # Add comment
         ksi.add(ksm.Comment(LineBreak='false', Label=comment))
         # Remove channels
