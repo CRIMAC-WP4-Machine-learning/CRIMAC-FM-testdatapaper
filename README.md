@@ -45,26 +45,39 @@ The `check_data.py` parses key diretories and count files by file extension per 
 
 Script to convert raw data to pulse compressed data in netcdf format.
 
-The script reads the raw data for each test data at `ACOUSTIC/EK80/EK80_RAWDATA`, extract metadata from the raw files using ektools, and run the KoronaModule to convert to pulsecompressed data. The output is saved to `ACOUSTIC/GRIDDED` as net cdf files. A figure is generated from the netcdf file and placed in the same folder. When multiple ping groups are present in the data, a separate folder is generated for each ping group.
+The script reads the raw data for each test data at `ACOUSTIC/EK80/EK80_RAWDATA`, extract metadata from the raw files using ektools, and run the KoronaModule to convert to pulsecompressed data. The output is saved to `ACOUSTIC/GRIDDED/pc_{i}` as net cdf files corresponding to the raw files, where {i} is the ping group number. When multiple ping groups are present in the data, {i} denotes the ping group, otherwise i=1. A figure is generated from the netcdf file and placed in the same folder. .
 
 ### raw2tracks.py - Tracking using Korona
 
 The script reads the raw data for each test data set at `ACOUSTIC/EK80/EK80_RAWDATA`, the output is stored under `ACOUSTIC/LSSS/KORONA`.
 
 
-### LSSS Manual tracking
-
-TODO: Read results and merge with the Korona tracking results. Store in Netcdf. Where to store the code for reading?
-
-
-### Image based tracking
+### raw2tracks_im.py - Tracking using image based methods
 
 Use Ingrids code to track samples belonging to same target across channels. 
 
-TODO: Write annotation data set for single targets, similar to annotation data.
+TODO: The script reads the pulse compressed data for each test data set at `ACOUSTIC/GRIDDED/pc_{i}`, run the tracking code and stores the output under `ACOUSTIC/GRIDDED/pc_{i}/tracks.csv`.
+
+The tracking code can be found here: https://github.com/CRIMAC-WP4-Machine-learning/CRIMAC-fm-sed
+
+Frå Ingrid: 
+
+Vedlagt er et eksempel på hvordan jeg ser for meg at output fra tracking-algoritmen kan skrives, basert på tidligere diskusjoner. 
+En kort beskrivelse av innholdet finnes i README her: https://github.com/CRIMAC-WP4-Machine-learning/CRIMAC-fm-sed : Single Echo Detection algorithm on multi channel frequency modulated echosounder data (github.com).
+
+Jeg har også pushet eksempelkode for hvordan csv-fila kan plottes sammen med data: https://github.com/CRIMAC-WP4-Machine-learning/CRIMAC-fm-sed/scripts/visualization/visualize_track_csv.py at main. Koden skal produsere det vedlagte bildet. 
+
+Si gjerne ifra hvis det er noe dere ønsker å endre på i output-formatet. 
+Fila inneholder ikke gode tracks – det er mye rom for forbedringer i algoritmen som produserte dette. 
+
 
 ### pc2tsf - Estimate TS(f)
 
-Based on the pulsecompresse data and the track definitions, estiamte TS(f) per target across all channels.
+Based on the pulsecompressed data and the track definitions, estimate TS(f) per target across all channels.
+
+The tracking code can be found here: ?
+
+TODO: The script reads the pulse compressed data and track definitions for each test data set at `ACOUSTIC/GRIDDED/pc_{i}`, run the TS(f) estimation and store the output under `ACOUSTIC/GRIDDED/pc_{i}/??.??`.
+
 
 
