@@ -8,3 +8,4 @@ netCDF4==1.6.5
 numpy~=1.24.4
 ektools~=0.1.1
 polars==0.20.25
+dask~=2023.5.0
