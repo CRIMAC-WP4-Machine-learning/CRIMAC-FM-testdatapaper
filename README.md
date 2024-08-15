@@ -31,7 +31,7 @@ where the $CRIMACSCRATCH variable points to the root location of your local data
 
 The file `DataSets.csv` contain the list of test data sets.
 
-To obtain the test data you need to run `python3 get_data_S3.py`. The data will be downloaded from the IMR S3 server and placed under `${CRIMACSCRATCH}/CRIMAC-FM-testdata`. Each individual test data set will be placed under `${CRIMACSCRATCH}/{year}/{testdataset}`.
+To obtain the test data you need to run `python3 get_data_S3.py`. The data will be downloaded from the IMR S3 server and placed under `${CRIMACSCRATCH}/CRIMAC-FM-testdata`. Each individual test data set will be placed under `/{year}/{testdataset}`.
 
 Note that the `get_data.py` moves the data from the backed up crimac storage to the S3 bucket, and must be run on one of IMR servers.
 
@@ -52,7 +52,7 @@ The script reads the raw data for each test data at `ACOUSTIC/EK80/EK80_RAWDATA`
 The script reads the raw data for each test data set at `ACOUSTIC/EK80/EK80_RAWDATA`, the output is stored under `ACOUSTIC/LSSS/KORONA`.
 
 
-### raw2tracks_im.py - Tracking using image based methods
+### pc2annotations.py - Tracking using image based methods
 
 Use Ingrids code to track samples belonging to same target across channels. 
 
