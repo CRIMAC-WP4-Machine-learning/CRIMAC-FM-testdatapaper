@@ -1,10 +1,6 @@
 # this script reads track definitions and estimate TSf
-import xarray as xr
-import matplotlib.pyplot as plt
-import numpy as np
-import glob
 import pandas as pd
-
+import os
 
 """
 
@@ -13,28 +9,26 @@ the results as an netcdf. the NetCDF file is read and the pulse compressed data 
 
 """
 
-
-def raw2pc(inputdir, outputdir):
-    # Instanitate the class
-
-
-# Read metadata & env variables
 df = pd.read_csv('testdata.csv')
-crimac = os.getenv('CRIMAC')
+crimac = os.getenv('CRIMACSCRATCH')
 
-# Print the current test data sets
-for _dataset in df['dataset']:
-    print(_dataset)
-    # Location of the pulse compresse data
-    pcdir = os.path.join(crimac, _dataset[1:5],
-                         _dataset, 'ACOUSTIC',
-                         'GRIDDED')
-    # Location of the track definitions
-    annotationdir = os.path.join(crimac, _dataset[1:5],
+# Loop over test data
+for i, row in df.iterrows():
+    if row['possible_single_tracks'] == 'yes':
+        _dataset = row['dataset']
+        _inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                                  _dataset, 'ACOUSTIC',
-                                 'tbd')
+                                 'GRIDDED')
+    
+        # Loop over channel groups
+        for __inputdir in os.listdir(_inputdir):
+            # Link to data
+            inputdir = os.path.join(_inputdir, __inputdir)
+            # Pulse compressed input data
+            files = os.listdir(inputdir)
+            # Track definitions input data
+            print(os.path.join(inputdir, 'tracks.csv'))
+            # Write TSf data to nc file
+            print(os.path.join(inputdir, 'TSf.nc'))
 
-    if os.path.exists(pcdir):
-        print(pcdir)
-        print(annotationdir)
-        #raw2pc(pcdir, annotationdir, tsfdir)
+
