@@ -86,7 +86,7 @@ def pc2png(outputdir, channels):
         ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
         print(ncfiles)
         if len(ncfiles) > 0:
-            # Assume that the group from the firs data set is similar across all nc files
+            # Assume that the group from the first data set is similar across all nc files
             nc_dataset = Dataset(ncfiles[0], "r")
             grp = list(nc_dataset.groups.keys())
             data = [xr.open_mfdataset(ncfiles, engine='netcdf4', group=_grp)
@@ -110,7 +110,7 @@ df = pd.read_csv('testdata.csv')
 crimac = os.getenv('CRIMACSCRATCH')
 
 # Print the current test data sets
-# i = 0
+i = 0
 for _dataset in df['dataset']:
     inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                             _dataset, 'ACOUSTIC',
@@ -139,7 +139,7 @@ for _dataset in df['dataset']:
         raw2pc(inputdir, outputdir, channels)
         print(' ')
         print('*****************pc2png****************************')
-        # pc2png(outputdir, channels)
-        # i += 1
+        pc2png(outputdir, channels)
+        i += 1
         print(' ')
         print(' ')
