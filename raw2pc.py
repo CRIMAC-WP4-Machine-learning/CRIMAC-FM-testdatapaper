@@ -39,12 +39,12 @@ def raw2pc(inputdir, outputdir, channels):
         
         # Instantiate the class
         ksi = ks.KoronaScript()
-       
+        
         # Add comment
         ksi.add(ksm.Comment(LineBreak='false', Label=comment))
         # Remove channels
         ksi.add(ksm.ChannelRemoval(Channels=channels[channel]['channels'], KeepSpecified='true'))
-         # Add emptypingremoval module
+        # Add emptypingremoval module
         ksi.add(ksm.EmptyPingRemoval())
         # Add the pulsecompression module and write to nc
         ksi.add(ksm.NetcdfWriter(Active = "true",
@@ -56,11 +56,23 @@ def raw2pc(inputdir, outputdir, channels):
                                  FftWindowSize = "2",
                                  DeltaFrequency = "1",
                                  ChannelGroupOutputType = "PULSE_COMPRESSION"))
+        
+        # Add CW writer and write to nc
+        ksi.add(ksm.NetcdfWriter(Active = "true",
+                                 DirName = 'cw_'+str(channel),
+                                 MainFrequency = str(MainFrequency),
+                                 WriterType = "CHANNEL_GROUPS",
+                                 GriddedOutputType = "SV_AND_ANGLES",
+                                 WriteAngels = "true",
+                                 FftWindowSize = "2",
+                                 DeltaFrequency = "1",
+                                 ChannelGroupOutputType = ""))
+
         # Print the configuration
         ksi.write()
         # Run KoronaScript
         ksi.run(src=inputdir, dst=outputdir)
-
+        
         # Remove temporary korona files
         kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.*')]
 
