@@ -40,7 +40,6 @@ def raw2pc(inputdir, outputdir, channels):
         # Instantiate the class
         ksi = ks.KoronaScript()
        
-
         # Add comment
         ksi.add(ksm.Comment(LineBreak='false', Label=comment))
         # Remove channels
@@ -109,6 +108,9 @@ def pc2png(outputdir, channels):
 df = pd.read_csv('testdata.csv')
 crimac = os.getenv('CRIMACSCRATCH')
 
+# DF to store data for overview
+dataoverview = pd.DataFrame()
+
 # Print the current test data sets
 i = 0
 for _dataset in df['dataset']:
@@ -130,6 +132,19 @@ for _dataset in df['dataset']:
         print(' ')
         print('Extract metadata:')
         channels, con, ind = rm.raw2meta(inputdir)
+
+        for _channels in channels:
+            channel_df = pd.DataFrame(channels[_channels])
+            #channel_df = channel_df.set_index('channel_names')
+            if ind is not None:
+                ind_df = pd.DataFrame(ind).T.rename(columns={
+                    'channel_id': 'channel_names'})
+                ind_df = ind_df.set_index('channel_names')
+                channel_df = pd.merge(ind_df, channel_df, on='channel_names')
+            dataoverview = pd.concat([dataoverview, channel_df], ignore_index=True)
+            dataoverview['ping_group'] = str(_channels)
+            dataoverview['dataset'] = _dataset
+
         print('channels per ping group:')
         print(channels)
         print('Raw index information:')
@@ -143,3 +158,6 @@ for _dataset in df['dataset']:
         i += 1
         print(' ')
         print(' ')
+
+dataoverview.to_csv(os.path.join(crimac, 'CRIMAC-FM-testdata',
+                                 'dataoverview.csv'))
