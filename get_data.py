@@ -9,7 +9,7 @@ with open("testdata.csv", 'r') as file:
     csvreader = csv.reader(file)
     header = next(csvreader)
     for row in csvreader:
-        testdata.append(row[1])
+        testdata.append(row[0])
 
 # Call whoami and capture the output
 source = '/data/crimac/'
