@@ -16,7 +16,19 @@ Split in real and complex (per sector)
 * calculate Y_pc_v_m (discrete FFT of the windowed data)
 * calc. discrete Fourier transform of the auto-correlation function Y_mf_auto_m
 (NetCDFs? y_mf_auto_red_im/re? Is that correct that it contains the reduced auto-correlation signal? how was that obtained?)
-
+* calc. normalised discrete FFT of the windowed data Y_tilde_pc_v_m
+* calc recieved power P_rx_e_v
+* calc Sv(f)
+    * P_rx_e_v(m) (na)
+    * alpha(f) (-)
+    * r_c (range)
+    * p_tx_e (transmit_power)
+    * lambda (f)
+    * c (sound_speed)
+    * t_w (na)
+    * \psi(f) (calibration_equivalent_beam_angle)
+    * g_o²(f) (calibration_gain)
+    
 
 """
 
