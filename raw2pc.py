@@ -135,6 +135,9 @@ for _dataset in df['dataset']:
 
         for _channels in channels:
             channel_df = pd.DataFrame(channels[_channels])
+            channel_df['ping_group'] = str(_channels)
+            channel_df['dataset'] = _dataset
+
             #channel_df = channel_df.set_index('channel_names')
             if ind is not None:
                 ind_df = pd.DataFrame(ind).T.rename(columns={
@@ -142,8 +145,6 @@ for _dataset in df['dataset']:
                 ind_df = ind_df.set_index('channel_names')
                 channel_df = pd.merge(ind_df, channel_df, on='channel_names')
             dataoverview = pd.concat([dataoverview, channel_df], ignore_index=True)
-            dataoverview['ping_group'] = str(_channels)
-            dataoverview['dataset'] = _dataset
 
         print('channels per ping group:')
         print(channels)
@@ -159,5 +160,17 @@ for _dataset in df['dataset']:
         print(' ')
         print(' ')
 
+col_to_move = dataoverview.pop('pulse_form')
+dataoverview.insert(0, 'pulse_form', col_to_move)
+col_to_move = dataoverview.pop('ping_group')
+dataoverview.insert(0, 'ping_group', col_to_move)
+col_to_move = dataoverview.pop('channel_names')
+dataoverview.insert(0, 'channel_names', col_to_move)
+col_to_move = dataoverview.pop('dataset')
+dataoverview.insert(0, 'dataset', col_to_move)
+
+dataoverview['pulse_form'][dataoverview['pulse_form'] == 0] = 'CW'
+dataoverview['pulse_form'][dataoverview['pulse_form'] == 1] = 'FM'
+
 dataoverview.to_csv(os.path.join(crimac, 'CRIMAC-FM-testdata',
-                                 'dataoverview.csv'))
+                                 'dataoverview.csv'), index=False)
