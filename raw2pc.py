@@ -128,7 +128,9 @@ def pc2png(outputdir, channels):
                     for _grp in grp if not _grp == 'Environment']
             # lat lon
             for _data in data:
-                _data = data[0] # Inge: denne skriv ut data med pulskomprimering???
+                _data = data[0]
+                print('Inge: denne skriv ut pulskomprimerte data og ikkje CW???:')
+                print(_data)
 
 
 # Read metadata & env variables
