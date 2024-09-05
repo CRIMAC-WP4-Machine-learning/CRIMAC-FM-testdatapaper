@@ -89,12 +89,16 @@ def pc2png(outputdir, channels):
     # Loop over the different ping groups
     for name in channels:
         print(' ')
+        name= '1'
         print('Processing pc_'+name+': pc2png')
         
         # List NC files
         ncdir = os.path.join(outputdir, 'pc_'+name)
+        cwdir = os.path.join(outputdir, 'cw_'+name)
         print(ncdir)
         ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
+        cwfiles = glob.glob(os.path.join(cwdir, '*.nc'))
+        
         print(ncfiles)
         if len(ncfiles) > 0:
             # Assume that the group from the first data set is similar across all nc files
@@ -102,7 +106,7 @@ def pc2png(outputdir, channels):
             grp = list(nc_dataset.groups.keys())
             data = [xr.open_mfdataset(ncfiles, engine='netcdf4', group=_grp)
                     for _grp in grp if not _grp == 'Environment']
-        
+            # lat lon
             for _data in data:
                 # Mean of pulsecompressed data across quadrants
                 y_pc_n = (_data['pulse_compressed_re'] + _data[
@@ -114,6 +118,17 @@ def pc2png(outputdir, channels):
                     'channel_id'].replace(" ", "_")+'.png')
                 plt.savefig(_f)
                 plt.close()
+
+        print(cwfiles)
+        if len(cwfiles) > 0:
+            # Assume that the group from the first data set is similar across all nc files
+            nc_dataset = Dataset(cwfiles[0], "r")
+            grp = list(nc_dataset.groups.keys())
+            data = [xr.open_mfdataset(cwfiles, engine='netcdf4', group=_grp)
+                    for _grp in grp if not _grp == 'Environment']
+            # lat lon
+            for _data in data:
+                _data = data[0] # Inge: denne skriv ut data med pulskomprimering???
 
 
 # Read metadata & env variables
@@ -156,7 +171,8 @@ for _dataset in df['dataset']:
                     'channel_id': 'channel_names'})
                 ind_df = ind_df.set_index('channel_names')
                 channel_df = pd.merge(ind_df, channel_df, on='channel_names')
-            dataoverview = pd.concat([dataoverview, channel_df], ignore_index=True)
+            dataoverview = pd.concat([dataoverview, channel_df],
+                                     ignore_index=True)
 
         print('channels per ping group:')
         print(channels)
