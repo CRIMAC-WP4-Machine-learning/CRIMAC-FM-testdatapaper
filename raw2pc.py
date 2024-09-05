@@ -193,7 +193,7 @@ for _dataset in df['dataset']:
         raw2pc(inputdir, outputdir, channels)
         print(' ')
         print('*****************pc2png****************************')
-        # pc2png(outputdir, channels)
+        #pc2png(outputdir, channels)
         # i += 1
         print(' ')
         print(' ')
