@@ -353,7 +353,7 @@ def read_raw_nc_params(nc_fp:str, frq:int) -> dict:
     params['pulse_compressed_im'] = np.array(fid.groups[frq_key].variables['pulse_compressed_im'][:]) 
     params['y_mf_auto_red_re'] = np.array(fid.groups[frq_key].variables['y_mf_auto_red_re'][:])  
     params['y_mf_auto_red_im'] = np.array(fid.groups[frq_key].variables['y_mf_auto_red_im'][:]) 
-
+    fid.close()
     return params
 
 def read_target_nc_params(nc_fp: str) -> dict:
