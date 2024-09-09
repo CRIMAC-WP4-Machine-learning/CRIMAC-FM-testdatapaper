@@ -4,29 +4,36 @@ import numpy as np
 import os
 from tqdm import tqdm
 import pandas as pd
-import scipy.signal as ss
-import scipy.fftpack as fft
 import warnings
 import netCDF4
 from datetime import datetime
 import glob
 
-# YNGVE: Added function for calculating TSf. Needs clean up. NEED TO VERIFY OUTPUT. 
-# It works with vectorized data input, so that, for a given frequency all the imported pings and targets 
-# can be fed directly. It does not yet handle data from multiple frequencies.
-#
-# Proper handling of number of fft-points is not yet implemented. Currently it is locked to the number
-# of calibration frequencies for each frequency. I am not sure how to interpolate the calibration data
-# between calibration frequencies.
-# 
-# Input params are dicts named 'data', 'tracks' and 'FFT_params' . The contents can be read from the list of variables.
-# The function returns TS(f), target_ranges, target_angle_alongship, target_angle_athwartship.
+''' 
+YNGVE: Added function for calculating TSf. Needs clean up. NEED TO VERIFY OUTPUT. 
+- It works with vectorized data input, so that, for a given frequency all the imported pings and targets 
+can be fed directly. 
+- One frequency from one file is read and calculated at each loop iteration. This is done so that it's 
+easy to export a file containing track and TSf data with a name corresponding to the source file.
+
+Input params are dicts named 'data', 'tracks' and 'FFT_params' . The contents can be read from the list of variables.
+The function returns TS(f), target_ranges, target_angle_alongship, target_angle_athwartship.
+'''
 def TSf(
         data,
         tracks,
         FFT_params = None
         ):
     
+    '''
+    Data input for one frequency at a time. 
+    To reduce function call overhead, the structure uses no sub-functions.
+    param data: dict of numpy arrays containing data required for calculating TSf
+    param tracks: dict of track info, namely ping_time and range
+    param FFT_params: dict containing FFT window length in meters before ('FFTbefore') and after ('FFTafter') peak,
+    and desired resolution in frequency ('delta_f'). Presumed to be the same for all pings in 'data'.
+    '''
+    # Extract data from dict
     ping_time = data['ping_time'][:]
     frequency = data['frequency'][:]
     z_rx_e = data['transceiver_impedance'][:]
@@ -47,7 +54,6 @@ def TSf(
     dB_G0 = data['calibration_gain'][:]
     pc_re = data['pulse_compressed_re']
     pc_im = data['pulse_compressed_im']
-    #delta_f  = data['ping_time'][:] # Change to N_points_FFT
     y_mf_auto_red_re = data['y_mf_auto_red_re'][:]
     y_mf_auto_red_im = data['y_mf_auto_red_im'][:]
     alpha = 0 # Get attenuation coeff from somewhere.
@@ -63,20 +69,21 @@ def TSf(
         delta_f = 100
 
 
-
-    # Currently number of frequency points is currently locked to the number of calibration points.
     # Attenuation is not included, because I don't know where it should come from.
     n_f_points = np.int64(1 + np.round((f_1-f_0)/delta_f))[0] # len(dB_G0)#.shape[1]# 
     f_c = f_0 + (f_1 - f_0)/2
     p_tx_e = 100 #HARD CODE CHANGE?
     z_td_e = 75 #HARD CODE CHANGE?
     f_n = frequency
-    # CURRENTLY A PROBLEM WHERE f_0 AND f_1 ARE OUTSIDE RANGE OF CALIB FREQUENCIES
+    # If f_0 and or f_1 are outside the range in calibration frequencies f_0 and f_1
+    # are changed to be at the edges of the available calibration frequencies. 
+    # Otherwise, the interpolation step fails.
     if f_0[0] < np.min(calibration_frequencies):
         f_0[0] = np.min(calibration_frequencies)
     if f_1[0] > np.max(calibration_frequencies):
         f_1[0] = np.max(calibration_frequencies)
 
+    # Initialize frequency vectors
     f_m = np.linspace(f_0[0], f_1[0], n_f_points)
     f_s_dec = 1/sample_interval
 
@@ -96,7 +103,7 @@ def TSf(
     # Linear gain coefficient
     g0_m = np.power(10, dB_G0 / 10)
 
-    # Expand and reshape:
+    # Expand and reshape: IS THIS NECESSARY???
     if np.max(gamma_theta_f_c) == np.min(gamma_theta_f_c):
         gamma_theta_f_c = gamma_theta_f_c[0]
     else:
@@ -119,8 +126,7 @@ def TSf(
     y_pc_star_n = 0.5 * (y_pc_nu[:, 0, :] + y_pc_nu[:, 3, :])
     y_pc_port_n = 0.5 * (y_pc_nu[:, 1, :] + y_pc_nu[:, 2, :])
 
-    # Chapter IIE: Power angles and samples
-    #
+
     # Physical angles
     y_theta_n = y_pc_fore_n * np.conj(y_pc_aft_n)
     y_phi_n = y_pc_star_n * np.conj(y_pc_port_n)
@@ -136,14 +142,14 @@ def TSf(
                 )
     
    
-    # Chapter III: TARGET STRENGTH
+    # TARGET STRENGTH
     #
     # Size of FFT- Window
     r_t_begin = r_t - FFTbefore
     r_t_end = r_t + FFTafter
     
     # Reduced auto correlation signal
-    y_mf_auto_red_n = y_mf_auto_red_re + 1j*y_mf_auto_red_im# y_mf_auto_red_re[ping_idx] + 1j*y_mf_auto_red_im[ping_idx]
+    y_mf_auto_red_n = y_mf_auto_red_re + 1j*y_mf_auto_red_im
     
     # DFT of target signal, DFT of reduced auto correlation signal, and
     # normalized DFT of target signal
@@ -157,8 +163,12 @@ def TSf(
     TS_m = []
     theta_t = []
     phi_t = []
+    # r_t is taken directly from track input. No target detector is applied.
     
+    # Initialize variable used to determine if gain and offsets need to be recalculated
+    # or can be reused from previous iteration
     previous_ping_idx = np.nan
+
     # Loop through all pings
     for i in tqdm(range(len(track_ping_time))):
         ping_idx =  np.argmin(ping_time - track_ping_time[i]) # temporary solution for the time difference
@@ -170,8 +180,6 @@ def TSf(
         Idx = np.where((r_n >= r_t_begin[i]) & (r_n <= r_t_end[i]))
         y_pc_t_n  = y_pc_n[ping_idx][Idx]
         
-        
-
         # DFT of target signal, DFT of reduced auto correlation signal, and
         # normalized DFT of target signal
     
@@ -205,6 +213,7 @@ def TSf(
             beamwidth_athwartship_interp = np.interp(
                     f_m, calibration_frequencies, beamwidth_athwartship
                 )
+            
         # Target strength spectrum
         B_theta_phi_m = (
                 0.5
@@ -234,7 +243,7 @@ def TSf(
             )
         g0_m_interp = np.power(10, dB_G0_interp / 10)
         g_theta_phi_m = g0_m_interp/(np.power(10, B_theta_phi_m / 10))
-        # print('Interpolating time: ', time()-t3)
+        
         TS_m.append(
                 10 * np.log10(P_rx_e_t_m[ping_idx])
                 + 40 * np.log10(r_t[i])
@@ -244,7 +253,7 @@ def TSf(
                     (p_tx_e * lambda_m[ping_idx]**2 * g_theta_phi_m**2) / (16 * np.pi**2)
                 )
             )
-        # Update index to check if ping_idx has changed:
+        # Update index to use to check if ping_idx has changed:
         previous_ping_idx = ping_idx
     return [TS_m, r_t, theta_t, phi_t]
 
