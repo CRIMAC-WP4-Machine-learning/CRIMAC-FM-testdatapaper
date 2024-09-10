@@ -8,7 +8,7 @@ import warnings
 import netCDF4
 from datetime import datetime
 import glob
-
+import time
 ''' 
 YNGVE: Added function for calculating TSf. Needs clean up. NEED TO VERIFY OUTPUT. 
 - It works with vectorized data input, so that, for a given frequency all the imported pings and targets 
@@ -161,6 +161,7 @@ def TSf(
     Y_mf_auto_red_m = _Y_mf_auto_red_m[idx]
     # Initialize return variables
     TS_m = []
+    freqs = []
     theta_t = []
     phi_t = []
     # r_t is taken directly from track input. No target detector is applied.
@@ -169,8 +170,27 @@ def TSf(
     # or can be reused from previous iteration
     previous_ping_idx = np.nan
 
+    # Interpolate
+        # angle_offset, beamwidth, dB_g0
+        # Perform only in case of change in ping_idx
+
+    dB_G0_interp = np.interp(f_m, calibration_frequencies, dB_G0)
+    angle_offset_alongship_interp = np.interp(
+            f_m, calibration_frequencies, angle_offset_alongship
+    )
+    angle_offset_athwartship_interp = np.interp(
+            f_m, calibration_frequencies, angle_offset_athwartship
+    )
+    beamwidth_alongship_interp = np.interp(
+            f_m, calibration_frequencies, beamwidth_alongship
+        )
+    beamwidth_athwartship_interp = np.interp(
+            f_m, calibration_frequencies, beamwidth_athwartship
+        )
+    g0_m_interp = np.power(10, dB_G0_interp / 10)
+
     # Loop through all pings
-    for i in tqdm(range(len(track_ping_time))):
+    for i in range(len(track_ping_time)):
         ping_idx =  np.argmin(ping_time - track_ping_time[i]) # temporary solution for the time difference
         idx_peak_p_rx = np.argmin(abs(r_n-r_t[i]))#np.where()#,atol=(r_n[1]-r_n[0])/2.01)))
         theta_t.append(theta_n[ping_idx][idx_peak_p_rx])
@@ -194,25 +214,7 @@ def TSf(
         imp = (np.abs(z_rx_e[ping_idx] + z_td_e) / np.abs(z_rx_e[ping_idx])) ** 2 / np.abs(z_td_e)
         P_rx_e_t_m = N_u * (np.abs(Y_tilde_pc_t_m) / (2 * np.sqrt(2))) ** 2 * imp
         
-        # Interpolate
-        # angle_offset, beamwidth, dB_g0
-        # Perform only in case of change in ping_idx
-        if ping_idx != previous_ping_idx or i == 0:
-            dB_G0_interp = np.interp(f_m, calibration_frequencies, dB_G0)
-            angle_offset_alongship_interp = np.interp(
-                    f_m, calibration_frequencies, angle_offset_alongship
-                )
-
-            angle_offset_athwartship_interp = np.interp(
-                    f_m, calibration_frequencies, angle_offset_athwartship
-                )
-
-            beamwidth_alongship_interp = np.interp(
-                    f_m, calibration_frequencies, beamwidth_alongship
-                )
-            beamwidth_athwartship_interp = np.interp(
-                    f_m, calibration_frequencies, beamwidth_athwartship
-                )
+        
             
         # Target strength spectrum
         B_theta_phi_m = (
@@ -241,7 +243,7 @@ def TSf(
                     )
                 )
             )
-        g0_m_interp = np.power(10, dB_G0_interp / 10)
+        
         g_theta_phi_m = g0_m_interp/(np.power(10, B_theta_phi_m / 10))
         
         TS_m.append(
@@ -253,9 +255,9 @@ def TSf(
                     (p_tx_e * lambda_m[ping_idx]**2 * g_theta_phi_m**2) / (16 * np.pi**2)
                 )
             )
-        # Update index to use to check if ping_idx has changed:
-        previous_ping_idx = ping_idx
-    return [TS_m, r_t, theta_t, phi_t]
+        freqs.append(f_m)
+        
+    return [TS_m, freqs, r_t, theta_t, phi_t]
 
    
 
@@ -397,10 +399,12 @@ def write_to_nc(TSf_fp: str, track_fp: str, output: dict):
     fid.target_source = "{:}".format(track_fp)
     fid.comments = "Power spectra of the targets";
 
+
     fid.createDimension('INSTANCE', 1)
-    fid.createDimension('MAXT', None)
-    fid.createDimension('STRING80', 80)
-    fid.createDimension('IDSTRING', 8)
+    fid.createDimension('MAXT', len(output['ping_time']))
+    fid.createDimension('FREQUENCY', output['frequency'].shape[0])
+    #fid.createDimension('STRING80', 80)
+    #fid.createDimension('IDSTRING', 8)
     # TIME variable
     TIME = fid.createVariable('ping_time', 'f8', ('INSTANCE', 'MAXT'), fill_value=np.nan)
     TIME.long_name = "time in seconds";
@@ -410,27 +414,41 @@ def write_to_nc(TSf_fp: str, track_fp: str, output: dict):
     TIME.ancillary_variables = "TIME_SEADATANET_QC";
     TIME.axis = "T";
     TIME.calendar = "gregorian";
+    TIME[:] = output['ping_time']
+    # frequency variable
+    FREQ = fid.createVariable('frequency', 'i4', ('FREQUENCY'))
+    FREQ.long_name = "frequency vector";
+    FREQ.standard_name = "frequency";
+    FREQ.units = "Hz";
+    FREQ[:] = output['frequency']
+    # TSf spectra variable
+    TSF = fid.createVariable('TS(f)', 'f4', ('INSTANCE', 'MAXT', 'FREQUENCY'), fill_value=np.nan)
+    TSF.long_name = "Target Strength spectrum";
+    TSF.standard_name = "spectrum";
+    TSF[:] = output['TSf']
     # range variable
-    R = fid.createVariable('single_target_range', 'f8', ('INSTANCE', 'MAXT'), fill_value=np.nan)
+    R = fid.createVariable('single_target_range', 'f4', ('INSTANCE', 'MAXT'), fill_value=np.nan)
     R.long_name = "target range in meter";
     R.standard_name = "range";
-    R.units = "range to the transducer surface";
+    R.units = "m";
+    R[:] = output['single_target_range']
     # target identifier variable
-    R = fid.createVariable('single_target_identifier', 'f8', ('INSTANCE', 'MAXT'), fill_value=np.nan)
-    R.long_name = "single target identifier";
-    R.standard_name = "id";
+    ID = fid.createVariable('single_target_identifier', 'f4', ('INSTANCE', 'MAXT'), fill_value=np.nan)
+    ID.long_name = "single target identifier";
+    ID.standard_name = "id";
+    ID[:] = output['single_target_identifier']
     # Angle alongship variable
-    R = fid.createVariable('single_target_angle_alongship', 'f8', ('INSTANCE', 'MAXT'), fill_value=np.nan)
-    R.long_name = "single_target_angle_alongship";
-    R.standard_name = "angle_alongship";
+    THETA = fid.createVariable('single_target_angle_alongship', 'f4', ('INSTANCE', 'MAXT'), fill_value=np.nan)
+    THETA.long_name = "single_target_angle_alongship";
+    THETA.standard_name = "angle_alongship";
+    THETA[:] = output['single_target_alongship_angle']
     # Angle athwartship variable
-    R = fid.createVariable('single_target_angle_athwartship', 'f8', ('INSTANCE', 'MAXT'), fill_value=np.nan)
-    R.long_name = "single_target_angle_athwartship";
-    R.standard_name = "angle_athwartship";
-    # TSf spectra variable
-    S = fid.createVariable('TS(f)', 'f8', ('INSTANCE', 'MAXT'), fill_value=np.nan)
-    S.long_name = "Target Strength spectrum";
-    S.standard_name = "spectrum";
+    PHI = fid.createVariable('single_target_angle_athwartship', 'f4', ('INSTANCE', 'MAXT'), fill_value=np.nan)
+    PHI.long_name = "single_target_angle_athwartship";
+    PHI.standard_name = "angle_athwartship";
+    PHI[:] = output['single_target_athwartship_angle']
+    
+    # Close file
     fid.close()
 
 def write_to_csv(csv_fp: str, output: dict):
@@ -453,6 +471,8 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=None, FFTbefore_me
     :param FFTafter_meters: the window length in meteres after target. If None, a default 0.5 m used
     :return: list of power spectra per target per ping
     '''
+    
+    tTot = 0
     if delta_f is None:
         delta_f = 100
 
@@ -503,6 +523,7 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=None, FFTbefore_me
 
     output = {  
                     'ping_time':[],
+                    'frequency': [],
                     'TSf': [],
                     'single_target_identifier': [],
                     'single_target_range': [],
@@ -515,6 +536,7 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=None, FFTbefore_me
         ncfile = ncfiles[j]
         currentfile_output = {  
                     'ping_time':[],
+                    'frequency': [],
                     'TSf': [],
                     'single_target_identifier': [],
                     'single_target_range': [],
@@ -523,13 +545,20 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=None, FFTbefore_me
             }
         targets = read_target_nc_params(nc_fp=trackfile)
         freqs = sorted(set(targets['frequency']))
-        print('')
-        print("Processing files: ")
-        print("ncfile: ", ncfile)
-        print("trackfile: ", trackfile)
-        print('Available frequencies in targets: ', np.array(freqs))
+        #print('')
+        #print("Processing files: ")
+        #print("ncfile: ", ncfile)
+        #print("trackfile: ", trackfile)
+        #print('Available frequencies in targets: ', np.array(freqs))
+        
+        # Make frequency array for all available frequencies
+        freq_tot = np.empty(0)
+        freq_processed = np.empty(0)
+
         for freq in freqs:
+            t1 = time.time()
             raw_pc = read_raw_nc_params(nc_fp=ncfile, frq=freq)
+            t2 = time.time() -t1
             # Filter targets to only include current frequency:
             filtered_targets = {
                                 'ping_time': [p for p, f in zip(targets['ping_time'], targets['frequency']) if f == freq],
@@ -541,13 +570,28 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=None, FFTbefore_me
             for key in filtered_targets:
                 filtered_targets[key] = np.array(filtered_targets[key])
             # Calculate TSf, range and angles for current file and current frequency:
-            print('')
-            print("Processing frequency: ", freq)
-            print(len(filtered_targets['frequency']))
-            [TSf_t, r_t, theta, phi] = TSf(raw_pc, filtered_targets,FFT)
+            #print('')
+            #print("Processing frequency: ", freq)
+            #print(len(filtered_targets['frequency']))
+            
+            [TSf_t, f_m, r_t, theta, phi] = TSf(raw_pc, filtered_targets,FFT)
+            
+            # Populate frequency array 
+            
+            if freq not in freq_processed:
+                freq_tot = np.append(freq_tot, f_m[0])
+                freq_processed = np.append(freq_processed, freq)
+
+            
+
+            
+            # print('TSf time: ', t2-t1)
+            # print('Tsf time per target: ', (t2-t1)/len(TSf_t))
+            tTot += t2
             nfft = len(TSf_t[0])
             output_temp = {  
                     'ping_time':filtered_targets['ping_time'],
+                    'frequency': f_m,
                     'TSf': TSf_t,
                     'single_target_identifier': filtered_targets['single_target_identifier'],
                     'single_target_range': r_t,
@@ -557,13 +601,25 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=None, FFTbefore_me
             for key in output:
                 output[key].extend(output_temp[key])
                 currentfile_output[key].extend(output_temp[key])
-            if freq > 199000:
-                print('')
+
+        # Change currentfile_output['frequency'] to freqTot
+        # Pad and shift TSf_t so that it aligns with freqTot.
+        # Frequencies where there is no TSf_t is set to np.nan
+        #TS = np.empty((len(currentfile_output['TSf']),freq_tot.shape[0]))
+        
+        for k, (frequencies, TS) in enumerate(zip(currentfile_output['frequency'], currentfile_output['TSf'])):
+            before = np.where(freq_tot == frequencies[0])[0].astype(int)[0]
+            after = (len(freq_tot) - np.where(freq_tot == frequencies[-1])[0]-1).astype(int)[0]
+            TS = np.pad(TS,(before,after),'constant',constant_values=(np.nan,np.nan))
+            currentfile_output['TSf'][k] = TS
+        # Replace frequency with the single array freq_tot to conserve space
+        currentfile_output['frequency'] = freq_tot                  
+
         # Save currentfile_output to file:
         if outputdir is not None:
             filename = trackfilenames[i] + '_TSf.nc'
             oufput_fp = os.path.join(ncdir, 'TSF', filename)
-            print("Writing TSf data to file: ", oufput_fp)
+            #print("Writing TSf data to file: ", oufput_fp)
             write_to_nc(oufput_fp, trackfile, currentfile_output)
         # if output_fp is not None:
         #     if os.path.splitext(output_fp)[1] == '.csv':
@@ -591,7 +647,7 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=None, FFTbefore_me
         #     pass
 
     
-
+    print(tTot)
     return output
 
 # track_fp = 'C:\\Users\\ynboe7456\\OneDrive - University of Bergen\\Phd Project-UiB-36B09Y3\\LSSS\\Data\\CRIMAC-FM-testdata\\2023\\T2023007\\ACOUSTIC\\LSSS\\KORONA\\track_1\\D20230803-T231448-korona-korona.nc'
@@ -601,9 +657,9 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=None, FFTbefore_me
 # Read metadata & env variables
 df = pd.read_csv('testdata.csv')
 crimac = os.getenv('CRIMACSCRATCH')
-
+t0 = time.time()
 for _dataset in df['dataset']:
-    print(_dataset)
+    
     inputdirPC = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                             _dataset, 'ACOUSTIC',
                             'GRIDDED', 'PC_1')
@@ -621,18 +677,17 @@ for _dataset in df['dataset']:
         print('***************************************************')
         print('*****************'+_dataset+'**************************')
         print('***************************************************')
-        print(' ')
-        print(inputdirPC)
-        print(inputdirTracks)
-        print(outputdir)
-        print(' ')
-        print(' ')
-        print('*****************pc2tsf****************************')
+        #print(' ')
+        #print(inputdirPC)
+        #print(inputdirTracks)
+        #print(outputdir)
+        #print(' ')
+        #print(' ')
+        #print('*****************pc2tsf****************************')
         pc2tsf(inputdirPC, inputdirTracks, outputdir)
         print(' ')
-        print('*****************pc2png****************************')
         print(' ')
-        print(' ')
+print(' Total time: ', time.time()-t0)
 
     
 
