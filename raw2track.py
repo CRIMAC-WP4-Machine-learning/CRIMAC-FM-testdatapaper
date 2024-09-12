@@ -426,7 +426,7 @@ def track2png(pcdir, koronadir):
 
 
 # Read metadata & env variables
-df = pd.read_csv('testdata.csv')[15:16]
+df = pd.read_csv('testdata.csv')
 crimac = os.getenv('CRIMACSCRATCH')
 
 
@@ -474,7 +474,7 @@ for _dataset in df['dataset']:
         
         #print('*****************raw2track**************************')
         
-        #raw2track(paths, channels)
+        raw2track(paths, channels)
 
         # Save tracks in nc-file
         #print('*****************track2nc**************************')
