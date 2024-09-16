@@ -118,7 +118,7 @@ def TSf(
     y_pc_nu = pc_re + 1j*pc_im
     
     # Average signal over all channels (transducer sectors)
-    y_pc_n = np.sum(y_pc_nu, axis=1) / y_pc_nu.shape[1] #Calculation.Calculation.calcAverageSignal(y_pc_nu)
+    y_pc_n = np.sum(y_pc_nu, axis=1) / y_pc_nu.shape[1] 
     
     # Average signals over paired channels corresponding to transducer halves
     # fore, aft, starboard, port
@@ -230,7 +230,6 @@ def TSf(
         Idx = np.where((r_n >= r_t_begin[i]) & (r_n <= r_t_end[i]))
         y_pc_t_n  = y_pc_n[ping_idx][Idx]
         
-        
         mean_relative_amplitude_pre_peak.append(
             np.mean(
                 np.abs(
@@ -261,7 +260,7 @@ def TSf(
         # FOR TESTING PURPOSES:
         plot = False
         if frequency == 333000:
-            plot = True
+            plot = False
          
         if plot:
             import matplotlib.pyplot as plt
