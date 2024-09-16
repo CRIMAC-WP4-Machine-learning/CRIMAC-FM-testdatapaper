@@ -9,6 +9,7 @@ import netCDF4
 from datetime import datetime
 import glob
 import time
+import matplotlib as plt
 ''' 
 YNGVE: Added function for calculating TSf. Needs clean up. NEED TO VERIFY OUTPUT. 
 - It works with vectorized data input, so that, for a given frequency all the imported pings and targets 
@@ -164,11 +165,21 @@ def TSf(
     freqs = []
     theta_t = []
     phi_t = []
+    # include measure of relative energy m samples after peak, where m corresponds to 1 meter. !!!! 
+    # To be used for estimating proximity to peaks after current peak
+    # Maybe need better name
+    m = np.int64(1/(r_n[1]-r_n[0]))
+    mean_relative_amplitude_pre_peak = []
+    mean_relative_amplitude_post_peak = []
+    # take mean and variance of n samples before and after peak:
+    n = 5 # start with hard coding number of samples. To be changed to some measure relative to sample spacing???
+    mean_theta_t = [] 
+    mean_phi_t = [] 
+    var_theta_t = [] 
+    var_phi_t = []
+    
     # r_t is taken directly from track input. No target detector is applied.
     
-    # Initialize variable used to determine if gain and offsets need to be recalculated
-    # or can be reused from previous iteration
-    previous_ping_idx = np.nan
 
     # Interpolate
         # angle_offset, beamwidth, dB_g0
@@ -196,25 +207,81 @@ def TSf(
             ping_idx =  np.where(np.abs(ping_time-track_ping_time[i])<=tolerance)[0][0]
             
         except:
-            print("No available ping for track no.", i)
+            #print("No available ping for track no.", i)
             theta_t.append(np.nan)
             phi_t.append(np.nan)
-            TS_m.append(np.full(len(f_m),np.nan)
+            TS_m.append(
+                np.full(len(f_m),np.nan)                        
                 )
-            
+            mean_relative_amplitude_pre_peak.append(np.nan)
+            mean_relative_amplitude_post_peak.append(np.nan)
+            mean_theta_t.append(np.nan) 
+            mean_phi_t.append(np.nan) 
+            var_theta_t.append(np.nan) 
+            var_phi_t.append(np.nan)
             freqs.append(f_m)
             continue
         
-        idx_peak_p_rx = np.argmin(abs(r_n-r_t[i]))
-        theta_t.append(theta_n[ping_idx][idx_peak_p_rx])
+        idx_peak_p_rx = np.argmin(abs(r_n-r_t[i])) 
+        theta_t.append(theta_n[ping_idx][idx_peak_p_rx]) # NEED WAY TO CHECK STABILITY OF ANGLES AROUND TARGET
         phi_t.append(phi_n[ping_idx][idx_peak_p_rx])
+        
         # Extract pulse compressed samples "before" and "after" the peak power
         Idx = np.where((r_n >= r_t_begin[i]) & (r_n <= r_t_end[i]))
         y_pc_t_n  = y_pc_n[ping_idx][Idx]
         
+        
+        mean_relative_amplitude_pre_peak.append(
+            np.mean(
+                np.abs(
+                    y_pc_n[ping_idx][idx_peak_p_rx-m:idx_peak_p_rx]
+                    )
+                )
+                /
+                np.abs(
+                    y_pc_n[ping_idx][idx_peak_p_rx]
+                    )
+            )
+        mean_relative_amplitude_post_peak.append(
+            np.mean(
+                np.abs(
+                    y_pc_n[ping_idx][idx_peak_p_rx+1:idx_peak_p_rx+m+1]
+                    )
+                )
+                /
+                np.abs(
+                    y_pc_n[ping_idx][idx_peak_p_rx]
+                    )
+        )
+        mean_theta_t.append(np.mean(theta_n[ping_idx][idx_peak_p_rx-n:idx_peak_p_rx+n])) 
+        mean_phi_t.append(np.mean(phi_n[ping_idx][idx_peak_p_rx-n:idx_peak_p_rx+n])) 
+        var_theta_t.append(np.var(theta_n[ping_idx][idx_peak_p_rx-n:idx_peak_p_rx+n])) 
+        var_phi_t.append(np.var(phi_n[ping_idx][idx_peak_p_rx-n:idx_peak_p_rx+n]))
+        
+        # FOR TESTING PURPOSES:
+        plot = False
+        if frequency == 333000:
+            plot = True
+         
+        if plot:
+            import matplotlib.pyplot as plt
+            plt.close()
+            plt.figure()
+            plt.subplot(211)
+            plt.plot(r_n[Idx],theta_n[ping_idx][Idx])
+            plt.plot(r_n[Idx],phi_n[ping_idx][Idx])
+            plt.vlines(r_n[idx_peak_p_rx],-5,5,'r')
+            plt.vlines(r_n[idx_peak_p_rx-5],-10,10,'g')  
+            plt.vlines(r_n[idx_peak_p_rx+5],-10,10,'g')  
+            plt.subplot(212)
+            plt.plot(r_n[Idx],np.log10(np.abs(y_pc_t_n)))
+            plt.vlines(r_n[idx_peak_p_rx],np.min(np.log10(np.abs(y_pc_t_n))),np.max(np.log10(np.abs(y_pc_t_n))),'r')
+            print(np.var(theta_n[ping_idx][idx_peak_p_rx-5:idx_peak_p_rx+5]))
+            print(np.var(phi_n[ping_idx][idx_peak_p_rx-5:idx_peak_p_rx+5]))
+            x=0
+        
         # DFT of target signal, DFT of reduced auto correlation signal, and
         # normalized DFT of target signal
-    
         # DFT for the target signal
         _Y_pc_t_m = np.fft.fft(y_pc_t_n, n=N_DFT)
         Y_pc_t_m = _Y_pc_t_m[idx]
@@ -226,7 +293,7 @@ def TSf(
         imp = (np.abs(z_rx_e[ping_idx] + z_td_e) / np.abs(z_rx_e[ping_idx])) ** 2 / np.abs(z_td_e)
         P_rx_e_t_m = N_u * (np.abs(Y_tilde_pc_t_m) / (2 * np.sqrt(2))) ** 2 * imp
         
-        
+
             
         # Target strength spectrum
         B_theta_phi_m = (
@@ -268,8 +335,21 @@ def TSf(
                 )
             )
         freqs.append(f_m)
+
         
-    return [TS_m, freqs, r_t, theta_t, phi_t]
+    return [
+        TS_m, 
+        freqs, 
+        r_t,
+        theta_t, 
+        phi_t, 
+        mean_relative_amplitude_pre_peak, 
+        mean_relative_amplitude_post_peak, 
+        mean_theta_t, 
+        mean_phi_t, 
+        var_theta_t, 
+        var_phi_t
+        ]
 
    
 
@@ -343,6 +423,7 @@ def read_raw_nc_params(nc_fp:str, frq:int) -> dict:
 
     
     params['ping_time'] = np.datetime64(pingstamp_ref,'ns') + np.array(fid.groups[frq_key].variables['ping_time'][:])
+    params['ping_time_ref'] = np.datetime64(datetime.strptime(pingstamp_ref, '%Y-%m-%dT%H:%M:%S.%f'))
     #params['ping_time'] = np.array(fid.groups[frq_key].variables['ping_time'][:])*1e-9+pingtime_ref #Why not read ping directly?
     params['frequency'] = np.array(frqs[frq_idx])
     params['pulse_length'] = float(fid.variables['pulse_length'][frq_idx][0])
@@ -480,7 +561,44 @@ def write_to_nc(TSf_fp: str, track_fp: str, output: dict, ping_time_ref):
     PLEN.standard_name = "pulse_length";
     PLEN.units = "s"
     PLEN[:] = output['pulse_length']
-    
+    # Mean relative log amplitude pre peak variable
+    MRLA1 = fid.createVariable('mean_relative_log_amplitude_pre_peak', 'f4', ('MAXT'), fill_value=np.nan)
+    MRLA1.long_name = "mean_relative_log_amplitude_pre_peak";
+    MRLA1.standard_name = "mean_relative_log_amplitude_pre_peak";
+    MRLA1.units = "-"
+    MRLA1[:] = output['mean_relative_log_amplitude_pre_peak']
+    # Mean relative log amplitude post peak variable
+    MRLA2 = fid.createVariable('mean_relative_log_amplitude_post_peak', 'f4', ('MAXT'), fill_value=np.nan)
+    MRLA2.long_name = "mean_relative_log_amplitude_post_peak";
+    MRLA2.standard_name = "mean_relative_log_amplitude_post_peak";
+    MRLA2.units = "-"
+    MRLA2[:] = output['mean_relative_log_amplitude_post_peak']
+    # mean alongship angle surrounding peak
+    MTHETA = fid.createVariable('mean_theta_t', 'f4', ('MAXT'), fill_value=np.nan)
+    MTHETA.long_name = "mean_theta surrounding peak";
+    MTHETA.standard_name = "mean_theta_t";
+    MTHETA.units = "rad"
+    MTHETA[:] = output['mean_theta_t']
+    # mean athwartship angle surrounding peak
+    MPHI = fid.createVariable('mean_phi_t', 'f4', ('MAXT'), fill_value=np.nan)
+    MPHI.long_name = "mean_phi surrounding peak";
+    MPHI.standard_name = "mean_phi_t";
+    MPHI.units = "rad"
+    MPHI[:] = output['mean_phi_t']
+    # variance alongship angle surrounding peak
+    VARTHETA = fid.createVariable('var_theta_t', 'f4', ('MAXT'), fill_value=np.nan)
+    VARTHETA.long_name = "variance_theta surrounding peak";
+    VARTHETA.standard_name = "var_theta_t";
+    VARTHETA.units = "rad ** 2"
+    VARTHETA[:] = output['var_theta_t']
+    # variance athwartship angle surrounding peak
+    VARPHI = fid.createVariable('var_phi_t', 'f4', ('MAXT'), fill_value=np.nan)
+    VARPHI.long_name = "variance_phi surrounding peak";
+    VARPHI.standard_name = "var_phi_t";
+    VARPHI.units = "rad ** 2"
+    VARPHI[:] = output['var_phi_t']
+
+
     # Close file
     fid.close()
 
@@ -522,12 +640,19 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_met
                     'channel_frequency': [],
                     'pulse_length': [],
                     'ping_time':[],
+                    'ping_time_ref': [],
                     'frequency': [],
                     'TSf': [],
                     'single_target_identifier': [],
                     'single_target_range': [],
                     'single_target_alongship_angle': [],
-                    'single_target_athwartship_angle': []
+                    'single_target_athwartship_angle': [],
+                    'mean_relative_log_amplitude_pre_peak': [], 
+                    'mean_relative_log_amplitude_post_peak': [], 
+                    'mean_theta_t': [], 
+                    'mean_phi_t': [], 
+                    'var_theta_t': [], 
+                    'var_phi_t': []
             }
     tTot = 0
     for trackfile in trackfiles:
@@ -541,19 +666,26 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_met
             else:
                 ncfile = None
         if ncfile is None:
-            print('No ncfile that matches trackfile ', trackfile, '. Skipping trackfile.')
+            # print('No ncfile that matches trackfile ', trackfile, '. Skipping trackfile.')
             continue
         
         currentfile_output = {  
                     'channel_frequency': [],
                     'pulse_length': [],
                     'ping_time':[],
+                    'ping_time_ref': [],
                     'frequency': [],
                     'TSf': [],
                     'single_target_identifier': [],
                     'single_target_range': [],
                     'single_target_alongship_angle': [],
-                    'single_target_athwartship_angle': []
+                    'single_target_athwartship_angle': [],
+                    'mean_relative_log_amplitude_pre_peak': [], 
+                    'mean_relative_log_amplitude_post_peak': [], 
+                    'mean_theta_t': [], 
+                    'mean_phi_t': [], 
+                    'var_theta_t': [], 
+                    'var_phi_t': []
 
             }
         targets = read_target_nc_params(nc_fp=trackfile)
@@ -577,12 +709,20 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_met
             # convert dict with list to dict with numpy array:
             for key in filtered_targets:
                 filtered_targets[key] = np.array(filtered_targets[key])
-            # Calculate TSf, range and angles for current file and current frequency:
-            #print('')
-            #print("Processing frequency: ", freq)
-            #print(len(filtered_targets['frequency']))
             
-            [TSf_t, f_m, r_t, theta, phi] = TSf(raw_pc, filtered_targets,FFT)
+            [
+                TSf_t, 
+                f_m, 
+                r_t, 
+                theta, 
+                phi,
+                mean_relative_log_amplitude_pre_peak, 
+                mean_relative_log_amplitude_post_peak, 
+                mean_theta_t, 
+                mean_phi_t, 
+                var_theta_t, 
+                var_phi_t
+                ] = TSf(raw_pc, filtered_targets,FFT)
             
             # Populate frequency array 
             
@@ -590,23 +730,24 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_met
                 freq_tot = np.append(freq_tot, f_m[0])
                 freq_processed = np.append(freq_processed, freq)
 
-            
-
-            
-            # print('TSf time: ', t2-t1)
-            # print('Tsf time per target: ', (t2-t1)/len(TSf_t))
             tTot += t2
             nfft = len(TSf_t[0])
             output_temp = {  
                     'channel_frequency': np.full(r_t.shape,freq),
                     'pulse_length': np.full(r_t.shape,raw_pc['pulse_length']),
-                    'ping_time':filtered_targets['ping_time'],
+                    'ping_time': [np.timedelta64(p-raw_pc['ping_time_ref']) for p in filtered_targets['ping_time']],
                     'frequency': f_m,
                     'TSf': TSf_t,
                     'single_target_identifier': filtered_targets['single_target_identifier'],
                     'single_target_range': r_t,
                     'single_target_alongship_angle': theta,
-                    'single_target_athwartship_angle': phi
+                    'single_target_athwartship_angle': phi,
+                    'mean_relative_log_amplitude_pre_peak': mean_relative_log_amplitude_pre_peak, 
+                    'mean_relative_log_amplitude_post_peak': mean_relative_log_amplitude_post_peak, 
+                    'mean_theta_t': mean_theta_t, 
+                    'mean_phi_t': mean_phi_t, 
+                    'var_theta_t': var_theta_t, 
+                    'var_phi_t': var_phi_t
             }
             for key in output_temp:
                 output[key].extend(output_temp[key])
@@ -624,6 +765,7 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_met
             currentfile_output['TSf'][k] = TS
         # Replace frequency with the single array freq_tot to conserve space
         currentfile_output['frequency'] = freq_tot
+        currentfile_output['ping_time_ref'] = raw_pc['ping_time_ref']
 
         # Save currentfile_output to file:
         if outputdir is not None:
