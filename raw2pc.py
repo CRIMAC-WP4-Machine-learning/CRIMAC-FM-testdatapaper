@@ -56,17 +56,6 @@ def raw2pc(inputdir, outputdir, channels):
                                  FftWindowSize = "2",
                                  DeltaFrequency = "1",
                                  ChannelGroupOutputType = "PULSE_COMPRESSION"))
-        
-        # Add CW writer and write to nc
-        ksi.add(ksm.NetcdfWriter(Active = "true",
-                                 DirName = 'cw_'+str(channel),
-                                 MainFrequency = str(MainFrequency),
-                                 WriterType = "CHANNEL_GROUPS",
-                                 GriddedOutputType = "SV_AND_ANGLES",
-                                 WriteAngels = "true",
-                                 FftWindowSize = "2",
-                                 DeltaFrequency = "1",
-                                 ChannelGroupOutputType = ""))
 
         # Print the configuration
         ksi.write()
@@ -89,15 +78,12 @@ def pc2png(outputdir, channels):
     # Loop over the different ping groups
     for name in channels:
         print(' ')
-        name= '1'
-        print('Processing pc_'+name+': pc2png')
+        print('Processing ping group pc_'+name+': pc2png')
         
         # List NC files
         ncdir = os.path.join(outputdir, 'pc_'+name)
-        cwdir = os.path.join(outputdir, 'cw_'+name)
         print(ncdir)
         ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
-        cwfiles = glob.glob(os.path.join(cwdir, '*.nc'))
         
         print(ncfiles)
         if len(ncfiles) > 0:
@@ -109,28 +95,25 @@ def pc2png(outputdir, channels):
             # lat lon
             for _data in data:
                 # Mean of pulsecompressed data across quadrants
-                y_pc_n = (_data['pulse_compressed_re'] + _data[
-                    'pulse_compressed_im']*1j).mean(dim="sector")
-                y_pc_na =  abs(y_pc_n).T # Absolute value of y_pc_n
-                # Plot the data to file
-                y_pc_na.plot.imshow(norm=LogNorm())
-                _f =  os.path.join(ncdir, _data.attrs[
-                    'channel_id'].replace(" ", "_")+'.png')
-                plt.savefig(_f)
-                plt.close()
-
-        print(cwfiles)
-        if len(cwfiles) > 0:
-            # Assume that the group from the first data set is similar across all nc files
-            nc_dataset = Dataset(cwfiles[0], "r")
-            grp = list(nc_dataset.groups.keys())
-            data = [xr.open_mfdataset(cwfiles, engine='netcdf4', group=_grp)
-                    for _grp in grp if not _grp == 'Environment']
-            # lat lon
-            for _data in data:
-                _data = data[0]
-                print('Inge: denne skriv ut pulskomprimerte data og ikkje CW???:')
-                print(_data)
+                if 'pulse_compressed_re' in _data:
+                    y_pc_n = (_data['pulse_compressed_re'] + _data[
+                        'pulse_compressed_im']*1j).mean(dim="sector")
+                    y_pc_na =  abs(y_pc_n).T # Absolute value of y_pc_n
+                    # Plot the data to file
+                    y_pc_na.plot.imshow(norm=LogNorm())
+                    _f =  os.path.join(ncdir, _data.attrs[
+                        'channel_id'].replace(" ", "_")+'_pc.png')
+                    plt.savefig(_f)
+                    plt.close()
+                elif 'sv' in _data:
+                    sv = _data['sv'].T
+                    # Plot the data to file
+                    sv.plot.imshow(norm=LogNorm())
+                    _f =  os.path.join(ncdir, _data.attrs[
+                        'channel_id'].replace(" ", "_")+'_sv.png')
+                    print(_f)
+                    plt.savefig(_f)
+                    plt.close()
 
 
 # Read metadata & env variables
@@ -167,7 +150,6 @@ for _dataset in df['dataset']:
             channel_df['ping_group'] = str(_channels)
             channel_df['dataset'] = _dataset
 
-            #channel_df = channel_df.set_index('channel_names')
             if ind is not None:
                 ind_df = pd.DataFrame(ind).T.rename(columns={
                     'channel_id': 'channel_names'})
@@ -199,8 +181,8 @@ dataoverview.insert(0, 'channel_names', col_to_move)
 col_to_move = dataoverview.pop('dataset')
 dataoverview.insert(0, 'dataset', col_to_move)
 
-dataoverview['pulse_form'][dataoverview['pulse_form'] == 0] = 'CW'
-dataoverview['pulse_form'][dataoverview['pulse_form'] == 1] = 'FM'
+dataoverview.loc[dataoverview['pulse_form'] == 0, 'pulse_form'] = 'CW'
+dataoverview.loc[dataoverview['pulse_form'] == 1, 'pulse_form'] = 'FM'
 
 dataoverview.to_csv(os.path.join(crimac, 'CRIMAC-FM-testdata',
                                  'dataoverview.csv'), index=False)
