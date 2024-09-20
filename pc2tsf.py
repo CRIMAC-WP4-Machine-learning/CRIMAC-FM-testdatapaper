@@ -20,6 +20,63 @@ easy to export a file containing track and TSf data with a name corresponding to
 Input params are dicts named 'data', 'tracks' and 'FFT_params' . The contents can be read from the list of variables.
 The function returns TS(f), target_ranges, target_angle_alongship, target_angle_athwartship.
 '''
+
+def calcAbsorption(t, s, d, c, f):
+        """
+        Calculate acoustic absorption.
+        
+        Uses the Francois & Garrison (1982) equations.
+        
+        Parameters
+        ----------
+        t : float
+            Temperature [°C]
+        s : float
+            Salinity [PPT]
+        d : float
+            Depth [m]
+        ph : float
+            Ph [1]
+        c : float
+            Sound speed [m/s]
+        f : np.array
+            Frequencies [kHz]
+            
+        Returns
+        -------
+        np.array
+            Estimates of acoustic absorption [dB/m]
+        """
+
+        if s < 10:
+            ph = 7.
+        else:
+            ph = 8.
+
+        f = f / 1000
+
+        a1 = (8.86 / c) * 10 ** (0.78 * ph - 5)
+        p1 = 1
+        f1 = 2.8 * (s / 35) ** 0.5 * 10 ** (4 - 1245 / (t + 273))
+
+        a2 = 21.44 * (s / c) * (1 + 0.025 * t)
+        p2 = 1 - 1.37e-4 * d + 6.62e-9 * d**2
+        f2 = 8.17 * 10 ** (8 - 1990 / (t + 273)) / (1 + 0.0018 * (s - 35))
+
+        p3 = 1 - 3.83e-5 * d + 4.9e-10 * d**2
+
+        a3l = 4.937e-4 - 2.59e-5 * t + 9.11e-7 * t**2 - 1.5e-8 * t**3
+        a3h = 3.964e-4 - 1.146e-5 * t + 1.45e-7 * t**2 - 6.5e-10 * t**3
+        a3 = a3l * (t <= 20) + a3h * (t > 20)
+
+        a = f**2 * (
+            a1 * p1 * f1 / (f1**2 + f**2)
+            + a2 * p2 * f2 / (f2**2 + f**2)
+            + a3 * p3
+        )
+
+        return a / 1000
+
 def TSf(
         data,
         tracks,
@@ -57,7 +114,6 @@ def TSf(
     pc_im = data['pulse_compressed_im']
     y_mf_auto_red_re = data['y_mf_auto_red_re'][:]
     y_mf_auto_red_im = data['y_mf_auto_red_im'][:]
-    alpha = 0 # Get attenuation coeff from somewhere.
     track_ping_time = tracks['ping_time'][:] 
     r_t = tracks['target_range'][:]
     if FFT_params is not None:
@@ -68,7 +124,17 @@ def TSf(
         FFTbefore = 0.5 
         FFTafter = 0.5
         delta_f = 100
+    if data['salinity'] is not None:
+        salinity = data['salinity']
+    else:
+        salinity = 30 # default value chosen from D2023006 CTD
+    
+    if data['temperature'] is not None:
+        temperature = data['temperature']
+    else:
+        temperature = 15 # default value chosen from D2023006 CTD
 
+    
 
     # Attenuation is not included, because I don't know where it should come from.
     n_f_points = np.int64(1 + np.round((f_1-f_0)/delta_f))[0] # len(dB_G0)#.shape[1]# 
@@ -87,11 +153,6 @@ def TSf(
     # Initialize frequency vectors
     f_m = np.linspace(f_0[0], f_1[0], n_f_points)
     f_s_dec = 1/sample_interval
-
-    # Absorption coefficient at center frequency and f_m
-    #!!!!!create dummy alpha as placeholder
-    alpha_f_c = 1e-20
-    alpha_m = np.linspace(alpha, alpha, n_f_points)
 
     # Wavelength at center frequency and f_m
     lambda_f_c = sound_speed/f_c
@@ -142,7 +203,6 @@ def TSf(
                     / np.pi
                 )
     
-   
     # TARGET STRENGTH
     #
     # Size of FFT- Window
@@ -267,12 +327,16 @@ def TSf(
             plt.close()
             plt.figure()
             plt.subplot(211)
+            plt.xlabel('Range [m]')
+            plt.ylabel('Angles [deg]')
             plt.plot(r_n[Idx],theta_n[ping_idx][Idx])
             plt.plot(r_n[Idx],phi_n[ping_idx][Idx])
             plt.vlines(r_n[idx_peak_p_rx],-5,5,'r')
             plt.vlines(r_n[idx_peak_p_rx-5],-10,10,'g')  
             plt.vlines(r_n[idx_peak_p_rx+5],-10,10,'g')  
             plt.subplot(212)
+            plt.xlabel('Range [m]')
+            plt.ylabel('log10(abs(y_pc_t_n)) [deg]')
             plt.plot(r_n[Idx],np.log10(np.abs(y_pc_t_n)))
             plt.vlines(r_n[idx_peak_p_rx],np.min(np.log10(np.abs(y_pc_t_n))),np.max(np.log10(np.abs(y_pc_t_n))),'r')
             print(np.var(theta_n[ping_idx][idx_peak_p_rx-5:idx_peak_p_rx+5]))
@@ -291,39 +355,22 @@ def TSf(
         # Received power spectrum for a single target
         imp = (np.abs(z_rx_e[ping_idx] + z_td_e) / np.abs(z_rx_e[ping_idx])) ** 2 / np.abs(z_td_e)
         P_rx_e_t_m = N_u * (np.abs(Y_tilde_pc_t_m) / (2 * np.sqrt(2))) ** 2 * imp
-        
-
-            
+      
         # Target strength spectrum
         B_theta_phi_m = (
-                0.5
-                * 6.0206
-                * (
-                    (np.abs(theta_t[i] - angle_offset_alongship_interp) / (beamwidth_alongship_interp / 2))
-                    ** 2
-                    + (
-                        np.abs(phi_t[i] - angle_offset_athwartship_interp)
-                        / (beamwidth_athwartship_interp / 2)
-                    )
-                    ** 2
-                    - 0.18
-                    * (
-                        (
-                            np.abs(theta_t[i] - angle_offset_alongship_interp)
-                            / (beamwidth_alongship_interp / 2)
-                        )
-                        ** 2
-                        * (
-                            np.abs(phi_t[i] - angle_offset_athwartship_interp)
-                            / (beamwidth_athwartship_interp / 2)
-                        )
-                        ** 2
-                    )
+                0.5 * 6.0206 * (
+                    (np.abs(theta_t[i] - angle_offset_alongship_interp) / (beamwidth_alongship_interp / 2)) ** 2
+                    + (np.abs(phi_t[i] - angle_offset_athwartship_interp) / (beamwidth_athwartship_interp / 2)) ** 2
+                    - 0.18 * ((np.abs(theta_t[i] - angle_offset_alongship_interp)/ (beamwidth_alongship_interp / 2)) ** 2
+                        * (np.abs(phi_t[i] - angle_offset_athwartship_interp) / (beamwidth_athwartship_interp / 2)) ** 2)
                 )
             )
         
         g_theta_phi_m = g0_m_interp/(np.power(10, B_theta_phi_m / 10))
         
+        # Absorption coefficient 
+        alpha_m = calcAbsorption(temperature, salinity, r_t[i], sound_speed[ping_idx], f_m) 
+
         TS_m.append(
                 10 * np.log10(P_rx_e_t_m)
                 + 40 * np.log10(r_t[i])
@@ -409,7 +456,9 @@ def read_raw_nc_params(nc_fp:str, frq:int) -> dict:
         'pulse_compressed_im': 0,
         'y_mf_auto_red_re': 0,  
         'y_mf_auto_red_im': 0,
-        'channel': 0
+        'channel': 0,
+        'temperature': 0,
+        'salinity': 0
         }
     fid = netCDF4.Dataset(nc_fp, 'r')
     frqs = fid.variables['frequency'][:]
@@ -450,7 +499,8 @@ def read_raw_nc_params(nc_fp:str, frq:int) -> dict:
     params['y_mf_auto_red_re'] = np.array(fid.groups[frq_key].variables['y_mf_auto_red_re'][:])  
     params['y_mf_auto_red_im'] = np.array(fid.groups[frq_key].variables['y_mf_auto_red_im'][:]) 
     params['ping_stamp_unit'] = pingstamp_unit
-    
+    params['temperature'] = np.array(fid.groups['Environment'].variables['temperature'][:])
+    params['salinity'] = np.array(fid.groups['Environment'].variables['salinity'][:])
 
     fid.close()
     return params
