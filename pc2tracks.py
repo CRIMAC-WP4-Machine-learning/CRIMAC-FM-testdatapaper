@@ -1,7 +1,11 @@
 # this script uses Ingrid library to compute the track boundaries
+# This module: https://github.com/CRIMAC-WP4-Machine-learning/CRIMAC-fm-sed
 import pandas as pd
 import os
-# import tracking code, somehow
+
+# Import tracking code
+from raw2meta import raw2meta
+from single_echo_detection.pipeline import SingleEchoDetectionPipeline
 
 '''
 
@@ -40,6 +44,8 @@ Range from the transducer face to the end of the acoustic backscatter from the s
 df = pd.read_csv('testdata.csv')
 crimac = os.getenv('CRIMACSCRATCH')
 
+crimac = "/nr/project/bild/CRIMAC/Broadband/Data/tmp_testdata/"
+
 # Loop over test data
 for i, row in df.iterrows():
     if row['possible_single_tracks'] == 'yes':
@@ -47,13 +53,25 @@ for i, row in df.iterrows():
         _inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                                  _dataset, 'ACOUSTIC',
                                  'GRIDDED')
-    
-        # Loop over channel groups
-        for __inputdir in os.listdir(_inputdir):
-            # Link to data
-            inputdir = os.path.join(_inputdir, __inputdir)
-            # Pulse compressed input data
-            files = os.listdir(inputdir)
-            # Run tracker on each inputdir and generate:
-            print(os.path.join(inputdir, 'tracks.csv'))
 
+        raw_data_dir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
+                     _dataset, 'ACOUSTIC', 'EK80', 'EK80_RAWDATA')
+        channels, con, ind = raw2meta(raw_data_dir)
+
+        # Loop over channel groups
+        for split in channels:
+            frequencies = channels[split]['transducer_frequency']
+
+            split_dir = os.path.join(_inputdir, f'pc_{split}')
+            files = os.listdir(split_dir)
+
+            for file in files:
+                path_to_nc = os.path.join(_inputdir, f'pc_{split}', file)
+
+                # Run tracker on each file
+                tracking_pipeline = SingleEchoDetectionPipeline(path_to_nc, frequencies)
+                tracking_df = tracking_pipeline.process()
+
+                # Save tracking dataframe
+                save_path = os.path.join(split_dir, f'{file}_tracks.csv')
+                tracking_df.to_csv(save_path, index=False)

@@ -91,7 +91,7 @@ def raw2track(paths, channels):
         comment = 'Processing pc_'+channel+' consisting of '+str(name)
         print(comment)
         
-        with open('trackingParams.json', 'r') as file:
+        with open(paths['trparams'], 'r') as file:
             trackingParams = json.load(file)
 
         # Instantiate the class
@@ -144,6 +144,7 @@ def raw2track(paths, channels):
         # Run the script:
         ksi.write()
         ksi.run(src=paths["inputdir"], dst=os.path.join(paths['outputdir'], 'track_'+channel))
+        print(os.path.join(paths['outputdir'], 'track_'+channel))
 
 
 def index(f):
@@ -178,13 +179,11 @@ def track2nc(_inputdir, _outputdir, channels):
         raw_files = [os.path.join(inputdir, f) for f in os.listdir(inputdir) if f.endswith('.raw')]
         assert len(raw_files) > 0, f"No Korona raw files found in {inputdir}"
 
-        _channels = channels[channel]['channels']
-        _transducer_frequencies = channels[channel]['transducer_frequency']
-
+        t_infos = []
+        t_borders = []
         for raw_file in raw_files:
-
-            t_infos = []
-            t_borders = []
+            # The frequencies are needed to convert the channel index to frequency. Is there an easier way to read them?
+            transducer_frequencies = np.array(channels[channel]['transducer_frequency'], dtype=int)
 
             # Extract data from korona file
             for pos, typ, length, msg in index(raw_file):
@@ -244,10 +243,12 @@ def track2nc(_inputdir, _outputdir, channels):
 
             # Add the frequency
             frequency_index = df_tracking_border['frequency_index'].to_numpy()
+            frequency_index = np.int8(frequency_index/frequency_index[0])
+
+            # For some datasets the channel does not neatly conform to the frequency of the transducer. Maybe this should be read from the raw file???
             df_tracking_border = df_tracking_border.with_columns(
                 pl.Series(name='frequency',
-                          values=_transducer_frequencies[frequency_index - 1]))
-
+                          values=transducer_frequencies[frequency_index - 1]))
             # Add the number of targets in each ping
             # NB not in use, this would require ping_time as a dimension in the xarray dataset
             # df_tracking_border = df_tracking_border.with_columns(pl.len().over('ping_time').alias('single_target_count'))
@@ -257,7 +258,7 @@ def track2nc(_inputdir, _outputdir, channels):
                 {
                     # 'single_target_alongship_angle': (['i'], single_target_alongship_angle),
                     # 'single_target_athwartship_angle': (['i'], single_target_athwartship_angle),
-                    'ping_time': (['i'], df_tracking_border['ping_time'].to_numpy()),
+                    'ping_time': (['i'], df_tracking_border['ping_time'].dt.to_string("%Y-%m-%d %H:%M:%S%.6f")),
                     'single_target_identifier': (['i'], df_tracking_border[
                         'single_target_identifier'].to_numpy()),
                     'single_target_start_range': (['i'], df_tracking_border[
@@ -271,7 +272,7 @@ def track2nc(_inputdir, _outputdir, channels):
                 },
                 coords={"i": (['i'], np.arange(len(df_tracking_border)))}
             )
-
+            
             # Save xarray to netcdf
             save_path = os.path.join(outputdir, os.path.split(raw_file)[1].replace('.raw', '.nc'))
             ds.to_netcdf(os.path.join(outputdir, save_path))
@@ -279,14 +280,10 @@ def track2nc(_inputdir, _outputdir, channels):
 
 def track2png(pcdir, koronadir):
     # List NC files
-    ncdir = os.path.join(pcdir, 'pc')
+    ncdir = koronadir#os.path.join(pcdir, 'pc')
     ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
 
     assert len(ncfiles) > 0, f"No NetCDF files found in {ncdir}"
-    #
-    # for channel in channels:
-    #     for
-
 
     for ncfile in ncfiles:
         # Read track dataframe
@@ -363,14 +360,18 @@ def track2png(pcdir, koronadir):
 
 
 # Read metadata & env variables
-
 df = pd.read_csv('testdata.csv')#[0:11]
 crimac = os.getenv('CRIMACSCRATCH')
 
-# Define input parameters
-pathTRanges = os.path.join(crimac, 'CRIMAC-FM-testdata', 'TransducerRanges.xml')
+
+
 
 for _dataset in df['dataset']:
+    # Define input parameters
+    pathTRanges = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
+                            _dataset, 'ACOUSTIC', 'EK80', 'EK80_RAWDATA', 'TransducerRanges.xml')
+    pathTrackingParams = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
+                            _dataset, 'ACOUSTIC', 'EK80', 'EK80_RAWDATA', 'TrackingParams.json')
     inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                             _dataset, 'ACOUSTIC',
                             'EK80', 'EK80_RAWDATA')
@@ -381,7 +382,7 @@ for _dataset in df['dataset']:
                               _dataset, 'ACOUSTIC', 'GRIDDED')
     # Loop over all combinations of griddeddirs
 
-    if os.path.exists(inputdir):
+    if os.path.exists(inputdir) and os.path.exists(pathTRanges) and os.path.exists(pathTrackingParams):
         print('***************************************************')
         print('*****************'+_dataset+'**************************')
         print('***************************************************')
@@ -391,27 +392,31 @@ for _dataset in df['dataset']:
 
         paths = {'inputdir': inputdir,
                  'outputdir': koronadir,
-                 'trranges': pathTRanges}
+                 'trranges': pathTRanges,
+                 'trparams': pathTrackingParams}
 
         print(' ')
         print('Extract metadata:')
 
         channels, con, ind = rm.raw2meta(inputdir)
 
-        print('channels per ping group:')
-        print(channels)
-        print(' ')
-        print('Raw ping information:')
-        print(ind)
-        print(' ')
-        print('*****************raw2track**************************')
+        #print('channels per ping group:')
+        #print(channels)
+        #print(' ')
+        #print('Raw ping information:')
+        #print(ind)
+        #print(' ')
+        
+        #print('*****************raw2track**************************')
+        
         raw2track(paths, channels)
 
         # Save tracks in nc-file
+        print('*****************track2nc**************************')
         track2nc(koronadir, koronadir, channels)
 
         # Plot tracks
-        #track2png(griddeddir, koronadir)
+        # track2png(griddeddir, koronadir)
 
         print(' ')
-        print(' ')
+        print(' DONE ')
