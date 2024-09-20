@@ -15,7 +15,7 @@ Split in real and complex (per sector)
 * calculate y_pc_s
 * calculate Y_pc_v_m (discrete FFT of the windowed data)
 * calc. discrete Fourier transform of the auto-correlation function Y_mf_auto_m
-(NetCDFs? y_mf_auto_red_im/re? Is that correct that it contains the reduced auto-correlation signal? how was that obtained?)
+<b>NB: (NetCDFs? y_mf_auto_red_im/re? Is that correct that it contains the reduced auto-correlation signal? how was that obtained?)</b>
 * calc. normalised discrete FFT of the windowed data Y_tilde_pc_v_m
 * calc recieved power P_rx_e_v
 * calc Sv(f)
