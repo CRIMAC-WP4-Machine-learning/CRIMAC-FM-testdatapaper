@@ -1,5 +1,9 @@
 import requests
 from bs4 import BeautifulSoup
+import os
+import zipfile
+from tqdm import tqdm
+
 
 # Get metadata
 url = 'http://metadata.nmdc.no/metadata-api/landingpage/f0bdafac077ee736926b57c422221f27'
@@ -16,7 +20,6 @@ for row in rows:
             turl = columns[1].text.strip()   # URL column
             code = columns[2].text.strip()  # T2021005 column
             if part == "PART":
-                print(turl)
                 # Get sub page
                 subresponse = requests.get(turl)
                 subsoup = BeautifulSoup(subresponse.content, 'html.parser')
@@ -27,22 +30,33 @@ for row in rows:
                         spart = columns[0].text.strip()  # PART column
                         sturl = columns[1].text.strip()   # URL column
                         if spart == "GET DATA":
-                            print(sturl)
                             results.append((code, turl, sturl))
 
 # Download data
-savefolder = os.environ['CRIMACSCRATCH']+'CRIMAC-FM-testdata'
+savefolder = os.path.join(os.environ['CRIMACSCRATCH'],'CRIMAC-FM-testdata')
 
-for result in results:
+for result in tqdm(results):
     # Store path
-    path = os.path.join(savefolder, result[0][1:5], result[0])
+    zip_file_path = os.path.join(savefolder, result[0][1:5],
+                                 result[0])
+    zip_file = os.path.join(zip_file_path, result[0]+'.zip')
 
-    # Create directory if not present
-    #if not os.path.exists(path):
-        #os.makedirs(path)
+    # Create data directory
+    os.makedirs(zip_file_path, exist_ok=True)
 
-    # Download data file
-    print(result[2])
-    # Unzip data file into path
-    print(path)
+    # Send a GET request to the URL
+    response = requests.get(result[2])
+
+    # Raise an exception if the request was unsuccessful
+    response.raise_for_status()
+
+    # Write the content of the file to the local filesystem
+    with open(zip_file, 'wb') as file:
+        file.write(response.content)
+
+    # Unzip file
+    with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+        zip_ref.extractall(zip_file_path)
+
     # Remove zip file
+    os.remove(zip_file)
