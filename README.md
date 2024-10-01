@@ -13,6 +13,10 @@ You will need a working installation of Korona and python. The code has been tes
 
 The required python libraries for python 3.8 are listed in the [requirements.txt](requirements.txt) file. To install the packages you can run `pip install -r requirements.txt` from the terminal.
 
+You need to install LSSS/Korona, follow the instructions here: [link](https://github.com/CRIMAC-WP4-Machine-learning/CRIMAC-KoronaScript/blob/master/README.md#install-lssskorona)
+
+You also need the OpenGL libraries for running the tracking like so: `sudo apt install libgl1-mesa-glx`
+
 It is recommended to use python environments. You can generate an environment by `python3 -m venv CRIMAC_testdata`, where `CRIMAC_testdata` is the name of the environment. Note that the environment will be installed in the current directory. It is recommented to create a separate directory to organize different environments, e.g. by `mkdir pyvenv` and enter the directory by `cd pyenv` before creating it. 
 
 After generating the environment you need to activate it by typing `source ./CRIMAC_testdata/bin/activate`. 
