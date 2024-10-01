@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import os
 import zipfile
 from tqdm import tqdm
-
+import csv
 
 # Get metadata
 url = 'http://metadata.nmdc.no/metadata-api/landingpage/f0bdafac077ee736926b57c422221f27'
@@ -32,13 +32,20 @@ for row in rows:
                         if spart == "GET DATA":
                             results.append((code, turl, sturl))
 
-# Download data
-savefolder = os.path.join(os.environ['CRIMACSCRATCH'],'CRIMAC-FM-testdata')
+savefolder = os.path.join(os.environ['CRIMACSCRATCH'], 'CRIMAC-FM-testdata')
 
+with open(os.path.join(savefolder, 'testdata.csv'),
+          mode='w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerow(('dataset', 'landingpage', 'datalink'))
+    for _results in results:
+        # Write the tuple as a row
+        writer.writerow(_results)
+
+# Download data
 for result in tqdm(results):
     # Store path
-    zip_file_path = os.path.join(savefolder, result[0][1:5],
-                                 result[0])
+    zip_file_path = os.path.join(savefolder, result[0][1:5])
     zip_file = os.path.join(zip_file_path, result[0]+'.zip')
 
     # Create data directory

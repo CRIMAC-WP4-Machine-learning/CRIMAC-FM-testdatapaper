@@ -117,8 +117,10 @@ def pc2png(outputdir, channels):
 
 
 # Read metadata & env variables
-df = pd.read_csv('testdata.csv')
 crimac = os.getenv('CRIMACSCRATCH')
+df_1 = pd.read_csv(os.path.join(crimac, 'CRIMAC-FM-testdata', 'testdata.csv'))
+df_2 = pd.read_csv(os.path.join('testdata.csv'))
+df = pd.merge(df_1, df_2, on='dataset', how='inner')
 
 # DF to store data for overview
 dataoverview = pd.DataFrame()
