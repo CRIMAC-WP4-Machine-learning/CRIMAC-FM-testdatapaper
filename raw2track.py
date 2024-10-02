@@ -289,6 +289,9 @@ def track2nc(_inputdir, _outputdir, channels):
             # Remove targets that are not valid according to tracking info datagrams
             df_tracking_border = df_tracking_border.join(
                 df_tracking_info[['id', 'valid']], on='id', how='inner')
+            # Delete rows where valid == 0
+            df_tracking_border = df_tracking_border.filter(pl.col('valid') != 0)
+
             df_tracking_border.drop_in_place('valid')
             del df_tracking_info
 
@@ -448,19 +451,26 @@ for _dataset in df['dataset']:
                               _dataset, 'ACOUSTIC', 'GRIDDED')
     # Loop over all combinations of griddeddirs
 
-    if os.path.exists(inputdir) and os.path.exists(pathTRanges) and os.path.exists(pathTrackingParams):
+    if os.path.exists(inputdir) and os.path.exists(pathTRanges):
         print('***************************************************')
         print('*****************'+_dataset+'**************************')
         print('***************************************************')
         print(' ')
         print(inputdir)
         print(griddeddir)
+        # if no trackingparams file in dataset folder, use local copy
+        if not os.path.exists(pathTrackingParams):
+            pathTrackingParams = os.path.join('trackingParams', 
+                            _dataset, 'TrackingParams.json')
+            #Skip dataset if file still does not exist
+            if not os.path.exists(pathTrackingParams):
+                continue
 
         paths = {'inputdir': inputdir,
                  'outputdir': koronadir,
                  'trparams': pathTrackingParams}
 
-        print(' ')
+        print(' paths ' , paths)
         print('Extract metadata:')
 
         channels, con, ind = rm.raw2meta(inputdir)

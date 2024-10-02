@@ -78,6 +78,7 @@ def TSf(
         ):
 
     '''
+    HOW DO WE HANDLE MISSING PINGS??? INTERPOLATION? IGNORE???
     Data input for one frequency at a time.
     To reduce function call overhead, the structure uses no sub-functions.
     param data:         dict of numpy arrays containing data required for calculating TSf
@@ -560,84 +561,84 @@ def write_to_nc(TSf_fp: str, track_fp: str, output: dict, ping_time_ref):
     TIME.calendar = "gregorian"
     TIME[:] = output['ping_time']
     # frequency variable
-    FREQ = fid.createVariable('frequency', 'i4', ('FREQUENCY'))
+    FREQ = fid.createVariable('frequency', 'i4', ('FREQUENCY'), compression='zlib')
     FREQ.long_name = "frequency vector"
     FREQ.standard_name = "frequency"
     FREQ.units = "Hz"
     FREQ[:] = output['frequency']
     # channel frequency variable
-    CHANNELFREQ = fid.createVariable('channel_frequency', 'i4', ('MAXT'))
+    CHANNELFREQ = fid.createVariable('channel_frequency', 'i4', ('MAXT'), compression='zlib')
     CHANNELFREQ.long_name = "channel frequency"
     CHANNELFREQ.standard_name = "channel frequency"
     CHANNELFREQ.units = "Hz"
     CHANNELFREQ[:] = output['channel_frequency']
     # TSf spectra variable
-    TSF = fid.createVariable('TS(f)', 'f4', ('MAXT', 'FREQUENCY'), fill_value=np.nan)
+    TSF = fid.createVariable('TS(f)', 'f8', ('MAXT', 'FREQUENCY'), fill_value=np.nan, compression='zlib')
     TSF.long_name = "Target Strength spectrum"
     TSF.standard_name = "spectrum"
     TSF.units = "dB re 1 m ** 2"
     TSF[:] = output['TSf']
     # range variable
-    R = fid.createVariable('single_target_range', 'f4', ('MAXT'), fill_value=np.nan)
+    R = fid.createVariable('single_target_range', 'f8', ('MAXT'), fill_value=np.nan, compression='zlib')
     R.long_name = "target range in meter"
     R.standard_name = "range"
     R.units = "m";
     R[:] = output['single_target_range']
     # target identifier variable
-    ID = fid.createVariable('single_target_identifier', 'f4', ('MAXT'), fill_value=np.nan)
+    ID = fid.createVariable('single_target_identifier', 'i8', ('MAXT'), fill_value=-1, compression='zlib')
     ID.long_name = "single target identifier"
     ID.standard_name = "id"
     ID[:] = output['single_target_identifier']
     # Angle alongship variable
-    THETA = fid.createVariable('single_target_angle_alongship', 'f4', ('MAXT'), fill_value=np.nan)
+    THETA = fid.createVariable('single_target_angle_alongship', 'f8', ('MAXT'), fill_value=np.nan, compression='zlib')
     THETA.long_name = "single_target_angle_alongship"
     THETA.standard_name = "angle_alongship"
     THETA.units = "rad"
     THETA[:] = output['single_target_alongship_angle']
     # Angle athwartship variable
-    PHI = fid.createVariable('single_target_angle_athwartship', 'f4', ('MAXT'), fill_value=np.nan)
+    PHI = fid.createVariable('single_target_angle_athwartship', 'f8', ('MAXT'), fill_value=np.nan, compression='zlib')
     PHI.long_name = "single_target_angle_athwartship"
     PHI.standard_name = "angle_athwartship"
     PHI.units = "rad"
     PHI[:] = output['single_target_athwartship_angle']
     # pulse length variable
-    PLEN = fid.createVariable('pulse_length', 'f4', ('MAXT'), fill_value=np.nan)
+    PLEN = fid.createVariable('pulse_length', 'f8', ('MAXT'), fill_value=np.nan, compression='zlib')
     PLEN.long_name = "pulse_length"
     PLEN.standard_name = "pulse_length"
     PLEN.units = "s"
     PLEN[:] = output['pulse_length']
     # Mean relative log amplitude pre peak variable
-    MRLA1 = fid.createVariable('mean_relative_log_amplitude_pre_peak', 'f4', ('MAXT'), fill_value=np.nan)
+    MRLA1 = fid.createVariable('mean_relative_log_amplitude_pre_peak', 'f8', ('MAXT'), fill_value=np.nan, compression='zlib')
     MRLA1.long_name = "mean_relative_log_amplitude_pre_peak"
     MRLA1.standard_name = "mean_relative_log_amplitude_pre_peak"
     MRLA1.units = "-"
     MRLA1[:] = output['mean_relative_log_amplitude_pre_peak']
     # Mean relative log amplitude post peak variable
-    MRLA2 = fid.createVariable('mean_relative_log_amplitude_post_peak', 'f4', ('MAXT'), fill_value=np.nan)
+    MRLA2 = fid.createVariable('mean_relative_log_amplitude_post_peak', 'f8', ('MAXT'), fill_value=np.nan, compression='zlib')
     MRLA2.long_name = "mean_relative_log_amplitude_post_peak"
     MRLA2.standard_name = "mean_relative_log_amplitude_post_peak"
     MRLA2.units = "-"
     MRLA2[:] = output['mean_relative_log_amplitude_post_peak']
     # mean alongship angle surrounding peak
-    MTHETA = fid.createVariable('mean_theta_t', 'f4', ('MAXT'), fill_value=np.nan)
+    MTHETA = fid.createVariable('mean_theta_t', 'f8', ('MAXT'), fill_value=np.nan, compression='zlib')
     MTHETA.long_name = "mean_theta surrounding peak"
     MTHETA.standard_name = "mean_theta_t"
     MTHETA.units = "rad"
     MTHETA[:] = output['mean_theta_t']
     # mean athwartship angle surrounding peak
-    MPHI = fid.createVariable('mean_phi_t', 'f4', ('MAXT'), fill_value=np.nan)
+    MPHI = fid.createVariable('mean_phi_t', 'f8', ('MAXT'), fill_value=np.nan, compression='zlib')
     MPHI.long_name = "mean_phi surrounding peak"
     MPHI.standard_name = "mean_phi_t"
     MPHI.units = "rad"
     MPHI[:] = output['mean_phi_t']
     # variance alongship angle surrounding peak
-    VARTHETA = fid.createVariable('var_theta_t', 'f4', ('MAXT'), fill_value=np.nan)
+    VARTHETA = fid.createVariable('var_theta_t', 'f8', ('MAXT'), fill_value=np.nan, compression='zlib')
     VARTHETA.long_name = "variance_theta surrounding peak"
     VARTHETA.standard_name = "var_theta_t"
     VARTHETA.units = "rad ** 2"
     VARTHETA[:] = output['var_theta_t']
     # variance athwartship angle surrounding peak
-    VARPHI = fid.createVariable('var_phi_t', 'f4', ('MAXT'), fill_value=np.nan)
+    VARPHI = fid.createVariable('var_phi_t', 'f8', ('MAXT'), fill_value=np.nan, compression='zlib')
     VARPHI.long_name = "variance_phi surrounding peak"
     VARPHI.standard_name = "var_phi_t"
     VARPHI.units = "rad ** 2"
@@ -700,8 +701,8 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_met
                     'var_theta_t': [],
                     'var_phi_t': []
             }
-    tTot = 0
-    for trackfile in trackfiles:
+    tTot = time.time()
+    for trackfile in tqdm(trackfiles):
         trackfilename = os.path.basename(trackfile)[0:17] # extract filename. Needed for file output later
 
         for _ncfile in ncfiles:
@@ -741,9 +742,9 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_met
         freq_processed = np.empty(0)
 
         for freq in freqs:
-            t1 = time.time()
+            
             raw_pc = read_raw_nc_params(nc_fp=ncfile, frq=freq)
-            t2 = time.time() -t1
+            
             # Filter targets to only include current frequency:
             filtered_targets = {
                                 'ping_time': [p for p, f in zip(targets['ping_time'], targets['frequency']) if f == freq],
@@ -774,7 +775,7 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_met
             if freq not in freq_processed:
                 freq_tot = np.append(freq_tot, f_m[0])
                 freq_processed = np.append(freq_processed, freq)
-            tTot += t2
+            
             output_temp = {
                     'channel_frequency': np.full(r_t.shape,freq),
                     'pulse_length': np.full(r_t.shape,raw_pc['pulse_length']),
@@ -818,7 +819,7 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_met
             #print("Writing TSf data to file: ", oufput_fp)
             write_to_nc(oufput_fp, trackfile, currentfile_output, raw_pc['ping_stamp_unit'])
 
-    print(tTot)
+    print(time.time()-tTot)
     return output
 
 # Read metadata & env variables
