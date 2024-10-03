@@ -4,6 +4,7 @@ import pandas as pd
 import os
 import matplotlib.pyplot as plt
 import numpy as np
+import xarray as xr
 
 # Import tracking code
 from raw2meta import raw2meta
@@ -76,32 +77,48 @@ for i, row in df.iterrows():
                      _dataset, 'ACOUSTIC', 'EK80', 'EK80_RAWDATA')
         channels, con, ind = raw2meta(raw_data_dir)
 
-        # Select broadband frequencies
-        frequencies = datainfo.loc[(datainfo.dataset == _dataset) & (datainfo.pulse_form == "FM")].transducer_frequency.values
+        # Select the dataset info - find ping groups that contain FM data and select those channels
+        datainfo_dataset = datainfo.loc[(datainfo.dataset == _dataset) & (datainfo.pulse_form == "FM")]
 
-        if len(frequencies) == 0:
+        if len(datainfo_dataset) == 0:
             continue
 
-        # Loop over channel groups
-        for split in channels:
-
-            split_dir = os.path.join(_inputdir, f'pc_{split}')
+        for ping_group in datainfo_dataset.ping_group.unique():
+            split_dir = os.path.join(_inputdir, f'pc_{ping_group}')
             files = os.listdir(split_dir)
+
+            # Find all frequencies in ping group
+            frequencies = datainfo_dataset.loc[datainfo_dataset.ping_group == ping_group].transducer_frequency.unique()
 
             for file in files:
                 if not file.endswith('.nc'):
                     continue
 
-                path_to_nc = os.path.join(_inputdir, f'pc_{split}', file)
+                path_to_nc = os.path.join(_inputdir, f'pc_{ping_group}', file)
                 print(f'\n==> Detecting tracks in {path_to_nc}')
 
                 # Run tracker on each file
                 tracking_pipeline = SingleEchoDetectionPipeline(path_to_nc, frequencies)
                 tracking_df = tracking_pipeline.process()
 
-                # Save tracking dataframe
-                save_path = os.path.join(split_dir, f'{file.replace(".nc", "")}_tracks.csv')
-                tracking_df.to_csv(save_path, index=False)
+                # Create xarray dataset and save nc file
+                ds = xr.Dataset(
+                    {
+                        'ping_time': (['i'], tracking_df['ping_time']),
+                        'single_target_identifier': (['i'], tracking_df[
+                            'target_identifier'].to_numpy()),
+                        'single_target_start_range': (['i'], tracking_df[
+                            'single_target_start_range'].to_numpy()),
+                        'single_target_stop_range': (['i'], tracking_df[
+                            'single_target_end_range'].to_numpy()),
+                        'frequency': (['i'], tracking_df[
+                            'frequency'].to_numpy())
+                    },
+                    coords={"i": (['i'], np.arange(len(tracking_df)))}
+                )
+
+                save_path = os.path.join(split_dir, f'{file.replace(".nc", "")}_tracks.nc')
+                ds.to_netcdf(save_path)
 
                 # Save figure for each frequency
                 data_reader = tracking_pipeline.reader
@@ -118,4 +135,3 @@ for i, row in df.iterrows():
                     # Save figure
                     fig_path = os.path.join(split_dir, f'{file.replace(".nc", "")}_{int(frequency)}Hz_tracks.png')
                     save_fig(y_pc, label_mask, fig_path)
-
