@@ -122,11 +122,6 @@ df_1 = pd.read_csv(os.path.join(crimac, 'CRIMAC-FM-testdata', 'testdata.csv'))
 df_2 = pd.read_csv(os.path.join('testdata.csv'))
 df = pd.merge(df_1, df_2, on='dataset', how='inner')
 
-crimac = "/nr/project/bild/CRIMAC/Broadband/Data/testdata_nmdc/"
-
-
-os.environ["LSSS"] = "/nr/bamjo/user/utseth/lsss-2.16.0-alpha/"
-
 # DF to store data for overview
 dataoverview = pd.DataFrame()
 
@@ -139,11 +134,8 @@ for _dataset in df['dataset']:
     outputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                              _dataset, 'ACOUSTIC',
                              'GRIDDED')
-    print(inputdir)
-
-    print(os.path.exists(inputdir))
+    
     if os.path.exists(inputdir):
-
         
         print('***************************************************')
         print('*****************'+_dataset+'**************************')
