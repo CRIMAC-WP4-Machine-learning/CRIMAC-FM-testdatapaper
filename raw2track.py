@@ -345,6 +345,9 @@ def track2nc(_inputdir, _outputdir, channels):
             save_path = os.path.join(outputdir, os.path.split(raw_file)[1].replace('.raw', '.nc'))
             ds.to_netcdf(os.path.join(outputdir, save_path))
         
+        # Remove temporary korona files
+        kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.*')]
+        
 
 
 def track2png(pcdir, koronadir):
