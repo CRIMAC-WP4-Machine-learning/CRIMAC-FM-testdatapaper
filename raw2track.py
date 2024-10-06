@@ -26,11 +26,55 @@ or 'TrackingParameters.json' will be skipped.
 
 TransducerRanges.xml contains information on the transducers in the data.
 The path of this file is passed to Korona.
-Example: 
+ 
 """
+def configuration(configdir):
+    pathConfig = {
+        # 'ModuleConfiguration' : None, # cds file name, attrib 'ref' points to...what?
+        #   <parameter name="ModuleConfiguration" ref="CfsDirectory">CW.cds</parameter>
+        # The following are None, or point to xml files (contents unknown)
+        'Categorization' : None,
+        'HorizontalTransducerOffsets' : None,
+        'VerticalTransducerOffsets' : None,
+        'TransducerRanges' : None,
+        'Plankton' : None,
+        'BroadbandNotchFilters' : None,
+        'PulseCompressionFilters' : None,
+        'BroadbandSplitterBands' : None,
+        'Towfish' : None,
+    }
+
+    if os.path.exists(os.path.join(configdir, 'Categorization.xml')):
+        pathConfig['Categorization'] = os.path.join(configdir, 'Categorization.xml')
+
+    if os.path.exists(os.path.join(configdir, 'HorizontalTransducerOffsets.xml')):
+        pathConfig['HorizontalTransducerOffsets'] = os.path.join(configdir, 'HorizontalTransducerOffsets.xml')
+
+    if os.path.exists(os.path.join(configdir, 'VerticalTransducerOffsets.xml')):
+        pathConfig['VerticalTransducerOffsets'] = os.path.join(configdir, 'VerticalTransducerOffsets.xml')
+
+    if os.path.exists(os.path.join(configdir, 'TransducerRanges.xml')):
+        pathConfig['TransducerRanges'] = os.path.join(configdir, 'TransducerRanges.xml')
+
+    if os.path.exists(os.path.join(configdir, 'Plankton.xml')):
+        pathConfig['Plankton'] = os.path.join(configdir, 'Plankton.xml')
+
+    if os.path.exists(os.path.join(configdir, 'BroadbandNotchFilters.xml')):
+        pathConfig['BroadbandNotchFilters'] = os.path.join(configdir, 'BroadbandNotchFilters.xml')
+
+    if os.path.exists(os.path.join(configdir, 'PulseCompressionFilters.xml')):
+        pathConfig['PulseCompressionFilters'] = os.path.join(configdir, 'PulseCompressionFilters.xml')
+
+    if os.path.exists(os.path.join(configdir, 'BroadbandSplitterBands.xml')):
+        pathConfig['BroadbandSplitterBands'] = os.path.join(configdir, 'BroadbandSplitterBands.xml')
+
+    if os.path.exists(os.path.join(configdir, 'Towfish.xml')):
+        pathConfig['Towfish'] = os.path.join(configdir, 'Towfish.xml')
+
+    return pathConfig
 
 
-def raw2track(paths, channels):
+def raw2track(inputdir, griddeddir, trackingparamsdir, configdir, channels):
     # Can paths be set as environment variables???
     # paths = {'inputdir' : pathInputDir
     #          'outputdir' : pathOutputDir
@@ -91,11 +135,21 @@ def raw2track(paths, channels):
         comment = 'Processing pc_'+channel+' consisting of '+str(name)
         print(comment)
         
-        with open(paths['trparams'], 'r') as file:
+        with open(trackingparamsdir, 'r') as file:
             trackingParams = json.load(file)
 
         # Instantiate the class
-        ksi = ks.KoronaScript()
+        ksi = ks.KoronaScript(
+            Categorization = configdir['Categorization'],                              
+            HorizontalTransducerOffsets = configdir['HorizontalTransducerOffsets'],
+            VerticalTransducerOffsets = configdir['VerticalTransducerOffsets'],
+            TransducerRanges = configdir['TransducerRanges'],
+            Plankton = configdir['Plankton'],
+            BroadbandNotchFilters = configdir['BroadbandNotchFilters'],
+            PulseCompressionFilters = configdir['PulseCompressionFilters'],
+            BroadbandSplitterBands = configdir['BroadbandSplitterBands'],
+            Towfish = configdir['Towfish']
+        )
         # Add emptypingremoval module
         ksi.add(ksm.EmptyPingRemoval())
 
@@ -104,11 +158,7 @@ def raw2track(paths, channels):
 
         # Remove channels not to be processed
         ksi.add(ksm.ChannelRemoval(Channels=channels[channel]['channels'],
-                                   KeepSpecified='true'))
-        
-        # Point to the location of the LSSS installation
-        lsss = os.environ["LSSS"]
-        ksi = ks.KoronaScript(TransducerRanges=paths['trranges'])
+                                   KeepSpecified='true'))      
         
         # Loop over channels in ping group. How can I specify the channel withoiut kHz info???
         for i, _transducer_frequency in enumerate(channels[channel]['transducer_frequency']):
@@ -143,8 +193,8 @@ def raw2track(paths, channels):
                                  MinSampleToLengthFraction=reducedTrackingParams["MinSampleToLengthFraction"]))
         # Run the script:
         ksi.write()
-        ksi.run(src=paths["inputdir"], dst=os.path.join(paths['outputdir'], 'track_'+channel))
-        print(os.path.join(paths['outputdir'], 'track_'+channel))
+        ksi.run(src=inputdir, dst=os.path.join(griddeddir, 'track_'+channel))
+        print(os.path.join(griddeddir, 'track_'+channel))
 
 
 def index(f):
@@ -360,7 +410,7 @@ def track2png(pcdir, koronadir):
 
 
 # Read metadata & env variables
-df = pd.read_csv('testdata.csv')#[0:11]
+df = pd.read_csv('testdata.csv')
 crimac = os.getenv('CRIMACSCRATCH')
 
 
@@ -368,10 +418,7 @@ crimac = os.getenv('CRIMACSCRATCH')
 
 for _dataset in df['dataset']:
     # Define input parameters
-    pathTRanges = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
-                            _dataset, 'ACOUSTIC', 'EK80', 'EK80_RAWDATA', 'TransducerRanges.xml')
-    pathTrackingParams = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
-                            _dataset, 'ACOUSTIC', 'EK80', 'EK80_RAWDATA', 'TrackingParams.json')
+    trackingParamsdir = "\\config\\" + _dataset
     inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                             _dataset, 'ACOUSTIC',
                             'EK80', 'EK80_RAWDATA')
@@ -380,21 +427,30 @@ for _dataset in df['dataset']:
                              'LSSS', 'KORONA')
     griddeddir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                               _dataset, 'ACOUSTIC', 'GRIDDED')
+    # Define paths to configurations xml's used by Korona
+    '''
+        'Categorization'
+        'HorizontalTransducerOffsets'
+        'VerticalTransducerOffsets'
+        'TransducerRanges'
+        'Plankton'
+        'BroadbandNotchFilters'
+        'PulseCompressionFilters'
+        'BroadbandSplitterBands'
+        'Towfish'
+    '''
+    configdir = configuration("\\config\\"+_dataset)
     # Loop over all combinations of griddeddirs
 
-    if os.path.exists(inputdir) and os.path.exists(pathTRanges) and os.path.exists(pathTrackingParams):
+    pathTRanges = pathConfig['TransducerRanges']
+
+    if os.path.exists(inputdir) and os.path.exists(trackingParamsdir):
         print('***************************************************')
         print('*****************'+_dataset+'**************************')
         print('***************************************************')
         print(' ')
         print(inputdir)
         print(griddeddir)
-
-        paths = {'inputdir': inputdir,
-                 'outputdir': koronadir,
-                 'trranges': pathTRanges,
-                 'trparams': pathTrackingParams}
-
         print(' ')
         print('Extract metadata:')
 
@@ -409,7 +465,7 @@ for _dataset in df['dataset']:
         
         #print('*****************raw2track**************************')
         
-        raw2track(paths, channels)
+        raw2track(inputdir, griddeddir, trackingParamsdir, configdir, channels)
 
         # Save tracks in nc-file
         print('*****************track2nc**************************')
