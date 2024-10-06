@@ -1,7 +1,7 @@
 {
 	"Active": 							["true", "true", "true", "true", "true"], 
 	"TrackerType": 						["Peak", "Peak", "Peak", "Peak", "Peak"], 
-	"kHz": 								["38", "70", "120", "200", "333"], 
+	"kHz": 								["18", "38", "70", "120", "200"], 
 	"PlatformMotionType": 				["Floating", "Floating", "Floating", "Floating", "Floating"], 
 	"MinTS": 							["-50", "-50", "-50", "-50", "-50"], 
 	"PulseLengthDeterminationLevel": 	["2", "2", "2", "2", "2"], 
@@ -11,7 +11,7 @@
 	"DoPhaseDeviationCheck": 			["true", "true", "true", "true", "true"], 
 	"MaxPhaseDevSteps": 				["20", "20", "20", "20", "20"], 
 	"MaxTS": 							["0", "0", "0", "0", "0"], 
-	"MaxDepth": 						["23.75", "23.75", "23.75", "23.75", "23.75"], 
+	"MaxDepth": 						["90", "90", "90", "90", "90"], 
 	"MaxAlongshipAngle": 				["10", "10", "10", "10", "10"], 
 	"MaxAthwartshipAngle": 				["10", "10", "10", "10", "10"], 
 	"InitiationGateFunction": [

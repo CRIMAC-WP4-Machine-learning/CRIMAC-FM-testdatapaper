@@ -2,37 +2,31 @@
    <corrections type="RANGE">
       <transducer>
          <parameters>
-            <parameter name="Frequency">38</parameter>
-            <parameter name="BlindZone">3</parameter>
-            <parameter name="Range">35</parameter>
+            <parameter name="Frequency">18</parameter>
+            <parameter name="BlindZone">8</parameter>
+            <parameter name="Range">75</parameter>
          </parameters>
       </transducer>
       <transducer>
-        <parameters>
-            <parameter name="Frequency">70</parameter>
-            <parameter name="BlindZone">3</parameter>
-            <parameter name="Range">35</parameter>
+         <parameters>
+            <parameter name="Frequency">38</parameter>
+            <parameter name="BlindZone">8</parameter>
+            <parameter name="Range">75</parameter>
          </parameters>
       </transducer>
       <transducer>
          <parameters>
             <parameter name="Frequency">120</parameter>
-            <parameter name="BlindZone">3</parameter>
-            <parameter name="Range">35</parameter>
+            <parameter name="BlindZone">8</parameter>
+            <parameter name="Range">75</parameter>
          </parameters>
       </transducer>
       <transducer>
          <parameters>
             <parameter name="Frequency">200</parameter>
-            <parameter name="BlindZone">3</parameter>
-            <parameter name="Range">35</parameter>
+            <parameter name="BlindZone">8</parameter>
+            <parameter name="Range">75</parameter>
          </parameters>
       </transducer>
-      <transducer>
-         <parameters>
-            <parameter name="Frequency">333</parameter>
-            <parameter name="BlindZone">3</parameter>
-            <parameter name="Range">35</parameter>
-         </parameters>
-      </transducer>
+      
    </corrections>
