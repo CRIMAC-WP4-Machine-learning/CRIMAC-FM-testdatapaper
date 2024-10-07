@@ -74,12 +74,8 @@ def configuration(configdir):
     return pathConfig
 
 
-def raw2track(inputdir, griddeddir, trackingparamsdir, configdir, channels):
-    # Can paths be set as environment variables???
-    # paths = {'inputdir' : pathInputDir
-    #          'outputdir' : pathOutputDir
-    #          'trranges' : pathToTransducerRanges.xml}
-
+def raw2track(inputdir, outputdir, trackingparamsdir, configdir, channels):
+  
     # TransducerRanges.xml contains information on the transducers in the data.
     # Example:
     """
@@ -135,7 +131,8 @@ def raw2track(inputdir, griddeddir, trackingparamsdir, configdir, channels):
         comment = 'Processing pc_'+channel+' consisting of '+str(name)
         print(comment)
         
-        with open(trackingparamsdir, 'r') as file:
+        trackingParamsPath = trackingparamsdir + "\\TrackingParams.json"
+        with open(trackingParamsPath, 'r') as file:
             trackingParams = json.load(file)
 
         # Instantiate the class
@@ -164,7 +161,7 @@ def raw2track(inputdir, griddeddir, trackingparamsdir, configdir, channels):
         for i, _transducer_frequency in enumerate(channels[channel]['transducer_frequency']):
             # Reduce trackingparam dict to only contain the ii-th value in each key-value pair
             reducedTrackingParams = {w: m for w, m in
-                                     zip(list(trackingParams.keys()), list(list(zip(*list(trackingParams.values())))[0]))}
+                                     zip(list(trackingParams.keys()), list(list(zip(*list(trackingParams.values())))[i]))}
             # add tracking module
             ksi.add(ksm.Tracking(Active=reducedTrackingParams["Active"],
                                  TrackerType=reducedTrackingParams["TrackerType"],
@@ -193,8 +190,8 @@ def raw2track(inputdir, griddeddir, trackingparamsdir, configdir, channels):
                                  MinSampleToLengthFraction=reducedTrackingParams["MinSampleToLengthFraction"]))
         # Run the script:
         ksi.write()
-        ksi.run(src=inputdir, dst=os.path.join(griddeddir, 'track_'+channel))
-        print(os.path.join(griddeddir, 'track_'+channel))
+        ksi.run(src=inputdir, dst=os.path.join(outputdir, 'track_'+channel))
+        print(os.path.join(outputdir, 'track_'+channel))
 
 
 def index(f):
@@ -247,8 +244,8 @@ def track2nc(_inputdir, _outputdir, channels):
                     parsed_datagram = parser._unpack_contents(msg, length)
                     t_infos.append(parsed_datagram)
 
-            if len(t_borders) == 0:
-                # create empty netcdf file (why dont you do this before the for loop?)
+            if len(t_borders) == 0 or len(t_infos) == 0:
+                # create empty netcdf file
                 ds = xr.Dataset(
                     {
                         'ping_time': (['i'], []),
@@ -308,7 +305,7 @@ def track2nc(_inputdir, _outputdir, channels):
                 {
                     # 'single_target_alongship_angle': (['i'], single_target_alongship_angle),
                     # 'single_target_athwartship_angle': (['i'], single_target_athwartship_angle),
-                    'ping_time': (['i'], df_tracking_border['ping_time'].dt.to_string("%Y-%m-%d %H:%M:%S%.6f")),
+                    'ping_time': (['i'], np.array(df_tracking_border['ping_time'].cast(pl.Int64).to_numpy()).astype('datetime64[ns]')),
                     'single_target_identifier': (['i'], df_tracking_border[
                         'single_target_identifier'].to_numpy()),
                     'single_target_start_range': (['i'], df_tracking_border[
@@ -326,6 +323,11 @@ def track2nc(_inputdir, _outputdir, channels):
             # Save xarray to netcdf
             save_path = os.path.join(outputdir, os.path.split(raw_file)[1].replace('.raw', '.nc'))
             ds.to_netcdf(os.path.join(outputdir, save_path))
+            
+        # Remove temporary korona files
+        kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.raw*')]
+        kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.bot*')]
+        kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.idx*')]
 
 
 def track2png(pcdir, koronadir):
@@ -418,7 +420,7 @@ crimac = os.getenv('CRIMACSCRATCH')
 
 for _dataset in df['dataset']:
     # Define input parameters
-    trackingParamsdir = "\\config\\" + _dataset
+    trackingParamsdir = "config\\" + _dataset
     inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                             _dataset, 'ACOUSTIC',
                             'EK80', 'EK80_RAWDATA')
@@ -439,10 +441,10 @@ for _dataset in df['dataset']:
         'BroadbandSplitterBands'
         'Towfish'
     '''
-    configdir = configuration("\\config\\"+_dataset)
+    configdir = configuration("config\\"+_dataset)
     # Loop over all combinations of griddeddirs
 
-    pathTRanges = pathConfig['TransducerRanges']
+    
 
     if os.path.exists(inputdir) and os.path.exists(trackingParamsdir):
         print('***************************************************')
@@ -450,7 +452,7 @@ for _dataset in df['dataset']:
         print('***************************************************')
         print(' ')
         print(inputdir)
-        print(griddeddir)
+        print(koronadir)
         print(' ')
         print('Extract metadata:')
 
@@ -465,7 +467,7 @@ for _dataset in df['dataset']:
         
         #print('*****************raw2track**************************')
         
-        raw2track(inputdir, griddeddir, trackingParamsdir, configdir, channels)
+        raw2track(inputdir, koronadir, trackingParamsdir, configdir, channels)
 
         # Save tracks in nc-file
         print('*****************track2nc**************************')

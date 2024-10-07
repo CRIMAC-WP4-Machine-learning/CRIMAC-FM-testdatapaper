@@ -19,14 +19,14 @@
 		{"Alpha": 2.8, "Beta": 2.8, "Range": 0.1, "TS": 10}, 
 		{"Alpha": 2.8, "Beta": 2.8, "Range": 0.1, "TS": 10}, 
 		{"Alpha": 2.8, "Beta": 2.8, "Range": 0.1, "TS": 10}, 
-		{"Alpha": 2.8, "Beta": 2.8, "Range": 0.1, "TS": 20}], 
+		{"Alpha": 2.8, "Beta": 2.8, "Range": 0.1, "TS": 10}], 
 	"InitiationMinLength": 				["1", "1", "1", "1", "1"], 
 	"GateFunction": [
 		{"Alpha": 2.8, "Beta": 2.8, "Range": 0.1, "TS": 10}, 
 		{"Alpha": 2.8, "Beta": 2.8, "Range": 0.1, "TS": 10}, 
 		{"Alpha": 2.8, "Beta": 2.8, "Range": 0.1, "TS": 10}, 
 		{"Alpha": 2.8, "Beta": 2.8, "Range": 0.1, "TS": 10}, 
-		{"Alpha": 2.8, "Beta": 2.8, "Range": 0.1, "TS": 20}], 
+		{"Alpha": 2.8, "Beta": 2.8, "Range": 0.1, "TS": 10}], 
 	"AlphaBetaEstimator": [
 		{"Alpha": 0.9, "Beta": 0.1}, 
 		{"Alpha": 0.9, "Beta": 0.1}, 
