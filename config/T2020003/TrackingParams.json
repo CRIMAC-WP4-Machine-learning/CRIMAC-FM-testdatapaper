@@ -1,0 +1,28 @@
+{
+	"Active": 							["true"], 
+	"TrackerType": 						["Peak"], 
+	"kHz": 								["200"], 
+	"PlatformMotionType": 				["Floating"], 
+	"MinTS": 							["-50"], 
+	"PulseLengthDeterminationLevel": 	["2"], 
+	"MinEchoLength": 					["0"], 
+	"MaxEchoLength": 					["1"], 
+	"MaxGainCompensation": 				["18"], 
+	"DoPhaseDeviationCheck": 			["true"], 
+	"MaxPhaseDevSteps": 				["20"], 
+	"MaxTS": 							["0"], 
+	"MaxDepth": 						["48"], 
+	"MaxAlongshipAngle": 				["10"], 
+	"MaxAthwartshipAngle": 				["10"], 
+	"InitiationGateFunction": [ 
+		{"Alpha": 2.8, "Beta": 2.8, "Range": 0.1, "TS": 20}], 
+	"InitiationMinLength": 				["1"], 
+	"GateFunction": [
+		{"Alpha": 2.8, "Beta": 2.8, "Range": 0.1, "TS": 20}], 
+	"AlphaBetaEstimator": [ 
+		{"Alpha": 0.9, "Beta": 0.1}], 
+	"MaxMissingPings": 					["2"], 
+	"MaxMissingSamples": 				["0"], 
+	"MaxMissingPingsFraction": 			["0.15"], 
+	"MinTrackLength": 					["6"], 
+	"MinSampleToLengthFraction": 		["0.5"]}

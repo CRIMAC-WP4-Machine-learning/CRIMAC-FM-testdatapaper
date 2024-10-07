@@ -54,7 +54,7 @@ def raw2pc(inputdir, outputdir, channels):
                                  GriddedOutputType = "PULSE_COMPRESSION",
                                  WriteAngels = "true",
                                  FftWindowSize = "2",
-                                 DeltaFrequency = "1",
+                                 DeltaFrequency = "100",
                                  ChannelGroupOutputType = "PULSE_COMPRESSION"))
 
         # Print the configuration
