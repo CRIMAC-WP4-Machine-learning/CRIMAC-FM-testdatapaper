@@ -134,7 +134,7 @@ def TSf(
     angle_offset_athwartship = data['calibration_angle_offset_athwartship'].to_numpy()
     beamwidth_alongship = data['calibration_beamwidth_alongship'].to_numpy()
     beamwidth_athwartship = data['calibration_beamwidth_athwartship'].to_numpy()
-    equivalent_beam_angle = data['calibration_equivalent_beam_angle'].to_numpy()  # Remove?
+    #equivalent_beam_angle = data['calibration_equivalent_beam_angle'].to_numpy()  # Remove?
     calibration_frequencies = data['calibration_frequency'].to_numpy()
     dB_G0 = data['calibration_gain'].to_numpy()
     pc_re = data['pulse_compressed_re'].to_numpy()
@@ -142,8 +142,11 @@ def TSf(
     N_u = data['pulse_compressed_re'].shape[1]
     y_mf_auto_red_re = data['y_mf_auto_red_re'].to_numpy()
     y_mf_auto_red_im = data['y_mf_auto_red_im'].to_numpy()
+    theta_n = data['angle_alongship'].to_numpy()
+    phi_n = data['angle_athwartship'].to_numpy()
     track_ping_time = tracks['ping_time'].to_numpy()
     r_t = tracks['single_target_range'].to_numpy()
+    
     salinity = None # NOT YET READ FROM DATA
     temperature = None # NOT YET READ FROM DATA
     if FFT_params is not None:
@@ -219,27 +222,6 @@ def TSf(
 
     # Average signal over all channels (transducer sectors)
     y_pc_n = np.sum(y_pc_nu, axis=1) / y_pc_nu.shape[1]
-
-    # Average signals over paired channels corresponding to transducer halves
-    # fore, aft, starboard, port
-    y_pc_fore_n = 0.5 * (y_pc_nu[:, 2, :] + y_pc_nu[:, 3, :])
-    y_pc_aft_n = 0.5 * (y_pc_nu[:, 0, :] + y_pc_nu[:, 1, :])
-    y_pc_star_n = 0.5 * (y_pc_nu[:, 0, :] + y_pc_nu[:, 3, :])
-    y_pc_port_n = 0.5 * (y_pc_nu[:, 1, :] + y_pc_nu[:, 2, :])
-
-    # Physical angles
-    y_theta_n = y_pc_fore_n * np.conj(y_pc_aft_n)
-    y_phi_n = y_pc_star_n * np.conj(y_pc_port_n)
-    theta_n = (
-                    np.arcsin(np.arctan2(np.imag(y_theta_n), np.real(y_theta_n)) / gamma_theta_f_c)
-                    * 180
-                    / np.pi
-                )
-    phi_n = (
-                    np.arcsin(np.arctan2(np.imag(y_phi_n), np.real(y_phi_n)) / gamma_phi_f_c)
-                    * 180
-                    / np.pi
-                )
 
     # TARGET STRENGTH
     #
@@ -325,7 +307,7 @@ def TSf(
             continue
 
         idx_peak_p_rx = np.argmin(abs(r_n-r_t[i]))
-        theta_t.append(theta_n[ping_idx][idx_peak_p_rx]) # NEED WAY TO CHECK STABILITY OF ANGLES AROUND TARGET
+        theta_t.append(theta_n[ping_idx][idx_peak_p_rx]) 
         phi_t.append(phi_n[ping_idx][idx_peak_p_rx])
 
         # Extract pulse compressed samples "before" and "after" the peak power
