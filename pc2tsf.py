@@ -441,9 +441,7 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_met
         if targets.sizes['i'] == 0:
             print('Track file ', trackfilename, " is empty.")
             #continue
-        # cast ping_time dtype to dtype='datetime64['ns']'
-        #targets['ping_time'] = targets['ping_time'].astype(np.datetime64)
-        #
+        
         nc_dataset = Dataset(ncfile, "r")
         grp = list(nc_dataset.groups.keys())
         
@@ -471,7 +469,7 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_met
         freqs_targets = sorted(set(targets['frequency'].values))
         if len(freqs_targets) == 0:
             print('No tracked channels in file ', trackfilename)
-            #continue # skip file if no targets present
+            continue # skip file if no targets present
         # Initialize counter for dim "i"
         n_i = 0
         for i, freq in enumerate(freqs_targets):

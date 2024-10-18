@@ -54,7 +54,7 @@ def save_fig(data, labels, save_path):
         axs.contour(binary_labels.T, levels=[0, 1], cmap='autumn')
     fig.colorbar(im)
 
-    plt.savefig(save_path)
+    plt.savefig(save_path, dpi=300)
     plt.close(fig)
 
 
@@ -74,48 +74,58 @@ for i, row in df.iterrows():
 
         raw_data_dir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                      _dataset, 'ACOUSTIC', 'EK80', 'EK80_RAWDATA')
-        channels, con, ind = raw2meta(raw_data_dir)
+        if os.path.exists(_inputdir) and os.path.exists(raw_data_dir):
+            channels, con, ind = raw2meta(raw_data_dir)
 
-        # Select broadband frequencies
-        frequencies = datainfo.loc[(datainfo.dataset == _dataset) & (datainfo.pulse_form == "FM")].transducer_frequency.values
+            # Select broadband frequencies
+            frequencies = datainfo.loc[(datainfo.dataset == _dataset) & (datainfo.pulse_form == "FM")].transducer_frequency.values
+            channels_to_skip = datainfo.loc[(datainfo.dataset == _dataset) & (datainfo.pulse_form == "CW")].channels.values.tolist() # temp skip CW
+            if len(frequencies) == 0:
+                continue
 
-        if len(frequencies) == 0:
-            continue
-
-        # Loop over channel groups
-        for split in channels:
-
-            split_dir = os.path.join(_inputdir, f'pc_{split}')
-            files = os.listdir(split_dir)
-
-            for file in files:
-                if not file.endswith('.nc'):
+            # Loop over channel groups
+            for split in channels:
+                skip = False
+                for channel in channels[split]['channels']:
+                    if channel in channels_to_skip: # temp skip CW
+                        skip = True
+                        break
+                if skip == True:
                     continue
 
-                path_to_nc = os.path.join(_inputdir, f'pc_{split}', file)
-                print(f'\n==> Detecting tracks in {path_to_nc}')
+                split_dir = os.path.join(_inputdir, f'pc_{split}')
+                files = os.listdir(split_dir)
 
-                # Run tracker on each file
-                tracking_pipeline = SingleEchoDetectionPipeline(path_to_nc, frequencies)
-                tracking_df = tracking_pipeline.process()
+                for file in files:
+                    if not file.endswith('.nc'):
+                        continue
 
-                # Save tracking dataframe
-                save_path = os.path.join(split_dir, f'{file.replace(".nc", "")}_tracks.csv')
-                tracking_df.to_csv(save_path, index=False)
+                    path_to_nc = os.path.join(_inputdir, f'pc_{split}', file)
+                    print(f'\n==> Detecting tracks in {path_to_nc}')
 
-                # Save figure for each frequency
-                data_reader = tracking_pipeline.reader
-                for frequency in tracking_df.frequency.unique():
-                    # Get y_pc data
-                    pc_complex = data_reader.get_data(frequency)
-                    y_pc = np.absolute(pc_complex.values)
+                    # Run tracker on each file
+                    tracking_pipeline = SingleEchoDetectionPipeline(path_to_nc, frequencies)
+                    tracking_df = tracking_pipeline.process()
 
-                    df_freq = tracking_df.loc[tracking_df.frequency == frequency]  # Select rows with correct frequency
+                    # Save tracking dataframe
+                    save_path = os.path.join(split_dir, f'{file.replace(".nc", "")}_tracks.csv')
+                    tracking_df.to_csv(save_path, index=False)
 
-                    # Create label mask from df
-                    label_mask = df_to_mask_per_frequency(df_freq, y_pc)
+                    # Save figure for each frequency
+                    data_reader = tracking_pipeline.reader
+                    for frequency in tracking_df.frequency.unique():
+                        # Get y_pc data
+                        pc_complex = data_reader.get_data(frequency)
+                        y_pc = np.absolute(pc_complex.values)
 
-                    # Save figure
-                    fig_path = os.path.join(split_dir, f'{file.replace(".nc", "")}_{int(frequency)}Hz_tracks.png')
-                    save_fig(y_pc, label_mask, fig_path)
+                        df_freq = tracking_df.loc[tracking_df.frequency == frequency]  # Select rows with correct frequency
+
+                        # Create label mask from df
+                        label_mask = df_to_mask_per_frequency(df_freq, y_pc)
+
+                        # Save figure
+                        fig_path = os.path.join(split_dir, f'{file.replace(".nc", "")}_{int(frequency)}Hz_tracks.png')
+                        save_fig(y_pc, label_mask, fig_path)
+                        
+                        
 

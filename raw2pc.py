@@ -166,10 +166,10 @@ for _dataset in df['dataset']:
         print(ind)
         print(' ')
         print('*****************raw2pc****************************')
-        raw2pc(inputdir, outputdir, channels)
+        #raw2pc(inputdir, outputdir, channels)
         print(' ')
         print('*****************pc2png****************************')
-        pc2png(outputdir, channels)
+        #pc2png(outputdir, channels)
         i += 1
         print(' ')
         print(' ')
