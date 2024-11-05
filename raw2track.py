@@ -226,9 +226,10 @@ def track2nc(_inputdir, _outputdir, channels):
         raw_files = [os.path.join(inputdir, f) for f in os.listdir(inputdir) if f.endswith('.raw')]
         assert len(raw_files) > 0, f"No Korona raw files found in {inputdir}"
 
-        t_infos = []
-        t_borders = []
+        
         for raw_file in raw_files:
+            t_infos = []
+            t_borders = []
             # The frequencies are needed to convert the channel index to frequency. Is there an easier way to read them?
             transducer_frequencies = np.array(channels[channel]['transducer_frequency'], dtype=int)
 
@@ -330,85 +331,87 @@ def track2nc(_inputdir, _outputdir, channels):
         kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.idx*')]
 
 
-def track2png(pcdir, koronadir):
-    # List NC files
-    ncdir = koronadir#os.path.join(pcdir, 'pc')
-    ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
+def track2png(pcdir, koronadir, channels):
+    for channel in channels:
 
-    assert len(ncfiles) > 0, f"No NetCDF files found in {ncdir}"
+        # List NC files
+        ncdir = os.path.join(pcdir, 'pc_' + channel)
+        ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
 
-    for ncfile in ncfiles:
-        # Read track dataframe
-        filename = os.path.split(ncfile)[1]
+        assert len(ncfiles) > 0, f"No NetCDF files found in {ncdir}"
 
-        # Read track xarray
-        ds_track = xr.open_dataset(os.path.join(koronadir, filename.replace('.nc', '-korona.nc')))
-        if ds_track['i'].shape[0] == 0:
-            print(f"No tracks found in {filename}")
-            continue
+        for ncfile in ncfiles:
+            # Read track dataframe
+            filename = os.path.split(ncfile)[1]
 
-        # Assume that the group from the firs data set is similar across all nc files
-        nc_dataset = Dataset(ncfile, "r")
-        grp = sorted(list(nc_dataset.groups.keys()))
-
-        # Read data
-        data = [xr.open_dataset(ncfile, engine='netcdf4', group=_grp)
-                for _grp in grp if not _grp == 'Environment']
-
-        # Regex to extract channel from channel_id
-        # TODO better way to get channel frequency information?
-        channel_ids = [d.attrs['channel_id'] for d in data]
-        frequencies = [int(re.search(r'ES(\d+)', channel_id).group(1)) * 1000 for channel_id in channel_ids]
-
-        # Initialize track masks, like pulse_compressed_re, but without sector dimension
-        track_masks = [xr.full_like(d['pulse_compressed_re'].isel(sector=0), fill_value=np.nan) for d in data]
-
-        # initialize figure
-        fig, axs = plt.subplots(1, len(data), figsize=(20, 10))
-
-        if len(data) == 1:
-            axs = [axs]
-
-        for data_idx, _data in enumerate(data):
-            # Mean of pulsecompressed data across quadrants
-            y_pc_n = (_data['pulse_compressed_re'] + _data[
-                'pulse_compressed_im'] * 1j).mean(dim="sector")
-            y_pc_na = abs(y_pc_n).T  # Absolute value of y_pc_n
-
-            # Plot the data
-            y_pc_na.plot.imshow(norm=LogNorm(), ax=axs[data_idx])
-
-        # Plot the track data
-        for i in ds_track['i']:
-            track = ds_track.sel(i=i)
-
-            start_range = track.single_target_start_range
-            stop_range = track.single_target_stop_range
-            frequency = track.frequency.values
-            frequency_idx = np.where(frequencies == frequency)
-
-            if len(frequency_idx[0]) == 0:
-                print(f"Frequency channel {frequency} not found in gridded dataset {ncfile}")
+            # Read track xarray
+            ds_track = xr.open_dataset(os.path.join(koronadir, 'track_' + channel, filename.replace('.nc', '-korona.nc')))
+            if ds_track['i'].shape[0] == 0:
+                print(f"No tracks found in {filename}")
                 continue
-            frequency_idx = frequency_idx[0][0]
 
-            # Convert to datetime[ns], replace Z to silence deprecation warning (time zone info)
-            ping_time = track.ping_time  # np.datetime64(track.ping_time.values.replace('Z', ''))
-            range_slice = track_masks[frequency_idx].sel(range=slice(start_range, stop_range))
-            range_slice.sel(ping_time=ping_time, method='nearest')[:] = 1
+            # Assume that the group from the firs data set is similar across all nc files
+            nc_dataset = Dataset(ncfile, "r")
+            grp = sorted(list(nc_dataset.groups.keys()))
 
-        # Plot contour of track mask
-        for freq_idx in range(len(data)):
-            track_mask = track_masks[freq_idx].T
-            track_mask.plot.imshow(ax=axs[freq_idx], cmap='autumn', add_colorbar=False)
-            axs[freq_idx].set_title(f'{frequencies[freq_idx]} Hz')
+            # Read data
+            data = [xr.open_dataset(ncfile, engine='netcdf4', group=_grp)
+                    for _grp in grp if not _grp == 'Environment']
 
-            # Alternatively, plot contours of tracks
-            # track_mask.plot.contour(levels=[0, 1], colors='white', alpha=1.0, linewidths=1, linestyles='solid', ax=axs[freq_idx])
+            # Regex to extract channel from channel_id
+            # TODO better way to get channel frequency information?
+            channel_ids = [d.attrs['channel_id'] for d in data]
+            frequencies = [int(re.search(r'ES(\d+)', channel_id).group(1)) * 1000 for channel_id in channel_ids]
 
-        # save figure
-        _f = os.path.join(koronadir, filename.replace('.nc', f'_track.png'))
-        plt.savefig(_f)
+            # Initialize track masks, like pulse_compressed_re, but without sector dimension
+            track_masks = [xr.full_like(d['pulse_compressed_re'].isel(sector=0), fill_value=np.nan) for d in data]
+
+            # initialize figure
+            fig, axs = plt.subplots(1, len(data), figsize=(20, 10))
+
+            if len(data) == 1:
+                axs = [axs]
+
+            for data_idx, _data in enumerate(data):
+                # Mean of pulsecompressed data across quadrants
+                y_pc_n = (_data['pulse_compressed_re'] + _data[
+                    'pulse_compressed_im'] * 1j).mean(dim="sector")
+                y_pc_na = abs(y_pc_n).T  # Absolute value of y_pc_n
+
+                # Plot the data
+                y_pc_na.plot.imshow(norm=LogNorm(), ax=axs[data_idx])
+
+            # Plot the track data
+            for i in ds_track['i']:
+                track = ds_track.sel(i=i)
+
+                start_range = track.single_target_start_range
+                stop_range = track.single_target_stop_range
+                frequency = track.frequency.values
+                frequency_idx = np.where(frequencies == frequency)
+
+                if len(frequency_idx[0]) == 0:
+                    print(f"Frequency channel {frequency} not found in gridded dataset {ncfile}")
+                    continue
+                frequency_idx = frequency_idx[0][0]
+
+                # Convert to datetime[ns], replace Z to silence deprecation warning (time zone info)
+                ping_time = track.ping_time  # np.datetime64(track.ping_time.values.replace('Z', ''))
+                range_slice = track_masks[frequency_idx].sel(range=slice(start_range, stop_range))
+                range_slice.sel(ping_time=ping_time, method='nearest')[:] = 1
+
+            # Plot contour of track mask
+            for freq_idx in range(len(data)):
+                track_mask = track_masks[freq_idx].T
+                track_mask.plot.imshow(ax=axs[freq_idx], cmap='autumn', add_colorbar=False)
+                axs[freq_idx].set_title(f'{frequencies[freq_idx]} Hz')
+
+                # Alternatively, plot contours of tracks
+                # track_mask.plot.contour(levels=[0, 1], colors='white', alpha=1.0, linewidths=1, linestyles='solid', ax=axs[freq_idx])
+
+            # save figure
+            _f = os.path.join(koronadir, filename.replace('.nc', f'_track.png'))
+            plt.savefig(_f)
 
 
 # Read metadata & env variables
@@ -474,7 +477,8 @@ for _dataset in df['dataset']:
         track2nc(koronadir, koronadir, channels)
 
         # Plot tracks
-        # track2png(griddeddir, koronadir)
+        print('*****************track2png**************************')
+        track2png(griddeddir, koronadir, channels)
 
         print(' ')
         print(' DONE ')
