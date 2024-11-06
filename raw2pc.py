@@ -11,80 +11,65 @@ from netCDF4 import Dataset
 import raw2meta as rm
 
 """
-
-This example reads the specified test set (e.g. T2023001), applies pulse compression and stores 
-the results as an netcdf. the NetCDF file is read and the pulse compressed data are plotted.
-
+This example reads the specified test set (e.g. T2023001), applies
+pulse compression and stores the results as an netcdf. the NetCDF file
+is read and the pulse compressed data are plotted.
 """
 
+DEBUG=False
 
 def raw2pc(inputdir, outputdir, channels):
-    
     """
-
-    Raw2pc convert the raw files to pulse compressed files (when applicable) 
+    Raw2pc convert the raw files to pulse compressed files (when applicable)
     for each ping group using korona and KoronaScript.
-
     """
-    
     # Loop over the different ping groups
     for channel in channels:
         print(' ')
         name = channels[channel]['channel_names']
         # just pick the first frequency in the file as the main freq
         MainFrequency = channels[channel]['transducer_frequency'][0] // 1000
-        
+
         comment = 'Processing pc_'+channel+' consisting of '+str(name)
         print(comment)
-        
+
         # Instantiate the class
         ksi = ks.KoronaScript()
-        
-        # Add comment
         ksi.add(ksm.Comment(LineBreak='false', Label=comment))
-        # Remove channels
         ksi.add(ksm.ChannelRemoval(Channels=channels[channel]['channels'], KeepSpecified='true'))
-        # Add emptypingremoval module
         ksi.add(ksm.EmptyPingRemoval())
-        # Add the pulsecompression module and write to nc
-        ksi.add(ksm.NetcdfWriter(Active = "true",
-                                 DirName = 'pc_'+str(channel),
-                                 MainFrequency = str(MainFrequency),
-                                 WriterType = "CHANNEL_GROUPS",
-                                 GriddedOutputType = "PULSE_COMPRESSION",
-                                 WriteAngels = "true",
-                                 FftWindowSize = "2",
-                                 DeltaFrequency = "1",
-                                 ChannelGroupOutputType = "PULSE_COMPRESSION"))
+        ksi.add(ksm.NetcdfWriter(Active="true",
+                                 DirName='pc_'+str(channel),
+                                 MainFrequency=str(MainFrequency),
+                                 WriterType="CHANNEL_GROUPS",
+                                 GriddedOutputType="PULSE_COMPRESSION",
+                                 WriteAngels="true",
+                                 FftWindowSize="2",
+                                 DeltaFrequency="1",
+                                 ChannelGroupOutputType="PULSE_COMPRESSION"))
 
-        # Print the configuration
-        ksi.write()
-        # Run KoronaScript
+        if DEBUG: ksi.write()
         ksi.run(src=inputdir, dst=outputdir)
-        
+
         # Remove temporary korona files
-        kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.*')]
+        for f in glob.glob(outputdir+'/*korona.*'): os.remove(f)
 
 
 def pc2png(outputdir, channels):
-
     """
-        
-    pc2png reads the nc files and generate one plot per channel in the ping 
-    group
-
+    pc2png reads the nc files and generate one plot per channel in the ping group
     """
 
     # Loop over the different ping groups
     for name in channels:
         print(' ')
         print('Processing ping group pc_'+name+': pc2png')
-        
+
         # List NC files
         ncdir = os.path.join(outputdir, 'pc_'+name)
         print(ncdir)
         ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
-        
+
         print(ncfiles)
         if len(ncfiles) > 0:
             # Assume that the group from the first data set is similar across all nc files
@@ -98,23 +83,21 @@ def pc2png(outputdir, channels):
                 if 'pulse_compressed_re' in _data:
                     y_pc_n = (_data['pulse_compressed_re'] + _data[
                         'pulse_compressed_im']*1j).mean(dim="sector")
-                    y_pc_na =  abs(y_pc_n).T # Absolute value of y_pc_n
+                    y_pc_na = abs(y_pc_n).T  # Absolute value of y_pc_n
                     # Plot the data to file
                     y_pc_na.plot.imshow(norm=LogNorm())
-                    _f =  os.path.join(ncdir, _data.attrs[
-                        'channel_id'].replace(" ", "_")+'_pc.png')
+                    _f = os.path.join(ncdir, _data.attrs['channel_id'].replace(" ", "_")+'_pc.png')
                     plt.savefig(_f)
                     plt.close()
                 elif 'sv' in _data:
                     sv = _data['sv'].T
                     # Plot the data to file
                     sv.plot.imshow(norm=LogNorm())
-                    _f =  os.path.join(ncdir, _data.attrs[
+                    _f = os.path.join(ncdir, _data.attrs[
                         'channel_id'].replace(" ", "_")+'_sv.png')
                     print(_f)
                     plt.savefig(_f)
                     plt.close()
-
 
 # Read metadata & env variables
 crimac = os.getenv('CRIMACSCRATCH')
