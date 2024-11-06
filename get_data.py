@@ -33,6 +33,11 @@ for row in rows:
                             results.append((code, turl, sturl))
 
 savefolder = os.path.join(os.environ['CRIMACSCRATCH'], 'CRIMAC-FM-testdata')
+if os.path.exists(savefolder):
+    print(f'Save folder "{savefolder}" already exists. Exiting.')
+    exit(-1)
+    
+os.makedirs(savefolder, exist_ok=True)
 
 with open(os.path.join(savefolder, 'testdata.csv'),
           mode='w', newline='') as file:
