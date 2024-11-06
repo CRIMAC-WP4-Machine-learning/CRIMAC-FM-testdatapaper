@@ -16,7 +16,8 @@ pulse compression and stores the results as an netcdf. the NetCDF file
 is read and the pulse compressed data are plotted.
 """
 
-DEBUG=False
+DEBUG = False
+
 
 def raw2pc(inputdir, outputdir, channels):
     """
@@ -100,7 +101,10 @@ def pc2png(outputdir, channels):
                     plt.close()
 
 # Read metadata & env variables
-crimac = os.getenv('CRIMACSCRATCH')
+# Use os.environ instead of getenv() for earlier bailing if undefined
+crimac = os.eviron['CRIMACSCRATCH']
+lsss   = os.environ['LSSS']
+
 df_1 = pd.read_csv(os.path.join(crimac, 'CRIMAC-FM-testdata', 'testdata.csv'))
 df_2 = pd.read_csv(os.path.join('testdata.csv'))
 df = pd.merge(df_1, df_2, on='dataset', how='inner')
