@@ -40,7 +40,7 @@ def raw2pc(inputdir, outputdir, channels):
         ksi.add(ksm.ChannelRemoval(Channels=channels[channel]['channels'], KeepSpecified='true'))
         ksi.add(ksm.EmptyPingRemoval())
         ksi.add(ksm.NetcdfWriter(Active="true",
-                                 DirName='pc_'+str(channel),
+                                 DirName='pc_' + str(channel),
                                  MainFrequency=str(MainFrequency),
                                  WriterType="CHANNEL_GROUPS",
                                  GriddedOutputType="PULSE_COMPRESSION",
@@ -53,7 +53,7 @@ def raw2pc(inputdir, outputdir, channels):
         ksi.run(src=inputdir, dst=outputdir)
 
         # Remove temporary korona files
-        for f in glob.glob(outputdir+'/*korona.*'): os.remove(f)
+        for f in glob.glob(outputdir + '/*korona.*'): os.remove(f)
 
 
 def pc2png(outputdir, channels):
@@ -64,10 +64,10 @@ def pc2png(outputdir, channels):
     # Loop over the different ping groups
     for name in channels:
         print(' ')
-        print('Processing ping group pc_'+name+': pc2png')
+        print('Processing ping group pc_' + name + ': pc2png')
 
         # List NC files
-        ncdir = os.path.join(outputdir, 'pc_'+name)
+        ncdir = os.path.join(outputdir, 'pc_' + name)
         print(ncdir)
         ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
 
@@ -83,11 +83,11 @@ def pc2png(outputdir, channels):
                 # Mean of pulsecompressed data across quadrants
                 if 'pulse_compressed_re' in _data:
                     y_pc_n = (_data['pulse_compressed_re'] + _data[
-                        'pulse_compressed_im']*1j).mean(dim="sector")
+                        'pulse_compressed_im'] * 1j).mean(dim="sector")
                     y_pc_na = abs(y_pc_n).T  # Absolute value of y_pc_n
                     # Plot the data to file
                     y_pc_na.plot.imshow(norm=LogNorm())
-                    _f = os.path.join(ncdir, _data.attrs['channel_id'].replace(" ", "_")+'_pc.png')
+                    _f = os.path.join(ncdir, _data.attrs['channel_id'].replace(" ", "_") + '_pc.png')
                     plt.savefig(_f)
                     plt.close()
                 elif 'sv' in _data:
@@ -95,7 +95,7 @@ def pc2png(outputdir, channels):
                     # Plot the data to file
                     sv.plot.imshow(norm=LogNorm())
                     _f = os.path.join(ncdir, _data.attrs[
-                        'channel_id'].replace(" ", "_")+'_sv.png')
+                        'channel_id'].replace(" ", "_") + '_sv.png')
                     print(_f)
                     plt.savefig(_f)
                     plt.close()
@@ -122,11 +122,10 @@ for _dataset in df['dataset']:
     outputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                              _dataset, 'ACOUSTIC',
                              'GRIDDED')
-    
+
     if os.path.exists(inputdir):
-        
         print('***************************************************')
-        print('*****************'+_dataset+'**************************')
+        print('*****************' + _dataset + '**************************')
         print('***************************************************')
         print(' ')
         print(inputdir)
