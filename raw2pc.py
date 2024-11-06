@@ -100,10 +100,11 @@ def pc2png(outputdir, channels):
                     plt.savefig(_f)
                     plt.close()
 
+
 # Read metadata & env variables
 # Use os.environ instead of getenv() for earlier bailing if undefined
-crimac = os.eviron['CRIMACSCRATCH']
-lsss   = os.environ['LSSS']
+crimac = os.environ['CRIMACSCRATCH']
+lsss = os.environ['LSSS']
 
 df_1 = pd.read_csv(os.path.join(crimac, 'CRIMAC-FM-testdata', 'testdata.csv'))
 df_2 = pd.read_csv(os.path.join('testdata.csv'))
