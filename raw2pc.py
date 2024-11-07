@@ -61,4 +61,4 @@ if __name__ == '__main__':
     os.makedirs(outd, exist_ok=True)
     channels, con, ind = raw2meta.raw2meta(indir)
     print(f'Channels:\n{channels}')
-    raw2pc(indir, outd, channels, debug=True)
+    raw2pc(indir, outd, channels, debug=False)
