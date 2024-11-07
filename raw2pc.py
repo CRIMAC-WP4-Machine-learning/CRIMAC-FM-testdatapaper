@@ -4,6 +4,9 @@ import KoronaScript as ks
 import os
 import glob
 
+import sys
+import raw2meta
+
 """
 This example reads the specified test set (e.g. T2023001), applies
 pulse compression and stores the results as an netcdf. the NetCDF file
@@ -17,7 +20,6 @@ def raw2pc(inputdir, outputdir, channels, debug=False):
     """
     # Loop over the different ping groups
     for channel in channels:
-        print(' ')
         name = channels[channel]['channel_names']
         # just pick the first frequency in the file as the main freq
         MainFrequency = channels[channel]['transducer_frequency'][0] // 1000
@@ -45,3 +47,18 @@ def raw2pc(inputdir, outputdir, channels, debug=False):
 
         # Remove temporary korona files
         for f in glob.glob(outputdir + '/*korona.*'): os.remove(f)
+
+
+if __name__ == '__main__':
+    if not len(sys.argv) == 3:
+        print(f'Usage: {sys.argv[0]} <inputdir> <outputdir>')
+        exit(-1)
+    indir, outd = sys.argv[1], sys.argv[2]
+    if os.path.exists(outd):
+        print(f'Output dir "{outd}" already exists. Aborting.')
+        exit(-1)
+
+    os.makedirs(outd, exist_ok=True)
+    channels, con, ind = raw2meta.raw2meta(indir)
+    print(f'Channels:\n{channels}')
+    raw2pc(indir, outd, channels, debug=True)
