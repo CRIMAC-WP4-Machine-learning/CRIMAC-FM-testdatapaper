@@ -1,7 +1,6 @@
 # CRIMAC-FM-testdatapaper
 
-This repository contains code to dowlonad, process and visluaize the IMR test data sets using a combination of Korona and python libraries. 
-
+This repository contains code to download, process and visluaize the IMR test data sets using a combination of Korona and python libraries.
 
 ## Preparations
 
@@ -42,14 +41,34 @@ Note that the `get_data.py` moves the data from the backed up crimac storage to 
 The `check_data.py` parses key diretories and count files by file extension per standard directory.
 
 
-## Script for test data processing
+## Scripts for test data processing
 
+The scripts and function use the following naming conventions:
 
-### raw2pc.py - Convert raw data to pulse compressed data
+- raw: Simrad RAW format
+- pc: pulse compressed data, NetCDF format
+- tracks: individual object tracks, NetCDF format
+- annotations: same?
+- svf: echo per frequency by volume, i.e. S_v(f) values
+- tsf: echo per frequency for individual targets, TS(f)
+
+### process_pipeline_main.py - Run the conversion of test data from raw to pulse compressed
 
 Script to convert raw data to pulse compressed data in netcdf format.
 
 The script reads the raw data for each test data at `ACOUSTIC/EK80/EK80_RAWDATA`, extract metadata from the raw files using ektools, and run the KoronaModule to convert to pulsecompressed data. The output is saved to `ACOUSTIC/GRIDDED/pc_{i}` as net cdf files corresponding to the raw files, where {i} is the ping group number. When multiple ping groups are present in the data, {i} denotes the ping group, otherwise i=1. A figure is generated from the netcdf file and placed in the same folder. .
+
+This uses functionality from `raw2pc.py` and `raw2png.py`.
+
+### raw2pc.py - Convert a directory of RAW files to pusle compressed NetCDF
+
+This is a library function with a wrapper that allows it to be called
+as a standalone program.
+
+### raw2png.py - Make plots from pulse compressed data
+
+This is a library function with a wrapper that allows it to be called
+as a standalone program.
 
 ### raw2tracks.py - Tracking using Korona
 
@@ -84,4 +103,5 @@ The tracking code can be found here: ?
 TODO: The script reads the pulse compressed data and track definitions for each test data set at `ACOUSTIC/GRIDDED/pc_{i}`, run the TS(f) estimation and store the output under `ACOUSTIC/GRIDDED/pc_{i}/??.??`.
 
 
+### pc2tracks - track objects from pulse compressed data
 
