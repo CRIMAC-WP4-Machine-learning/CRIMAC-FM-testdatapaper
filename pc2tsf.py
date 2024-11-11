@@ -4,8 +4,9 @@ import os
 
 """
 
-This example reads the specified test set (e.g. T2023001), applies pulse compression and stores 
-the results as an netcdf. the NetCDF file is read and the pulse compressed data are plotted.
+This example reads the specified test set (e.g. T2023001), applies pulse
+compression and stores the results as an netcdf. the NetCDF file is read and
+the pulse compressed data are plotted.
 
 """
 
@@ -19,7 +20,7 @@ for i, row in df.iterrows():
         _inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                                  _dataset, 'ACOUSTIC',
                                  'GRIDDED')
-    
+
         # Loop over channel groups
         for __inputdir in os.listdir(_inputdir):
             # Link to data
@@ -30,5 +31,3 @@ for i, row in df.iterrows():
             print(os.path.join(inputdir, 'tracks.csv'))
             # Write TSf data to nc file
             print(os.path.join(inputdir, 'TSf.nc'))
-
-
