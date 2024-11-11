@@ -1,0 +1,15 @@
+tqdm==4.66.2
+koronascript==0.1
+xarray~=2023.1.0
+matplotlib~=3.7.5
+pandas~=2.0.3
+netCDF4==1.6.5
+numpy~=1.24.4
+ektools~=0.1.1
+polars==0.20.25
+dask~=2023.5.0
+requests==2.32.3
+bs4==0.0.2
+scikit-image==0.24.0
+opencv-python==4.10.0.84
+regex
