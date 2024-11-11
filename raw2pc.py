@@ -22,8 +22,8 @@ def raw2pc(inputdir, outputdir, channels, debug=False):
     # Loop over the different ping groups
     for channel in channels:
         name = channels[channel]['channel_names']
-        # just pick the first frequency in the file as the main freq
-        MainFrequency = channels[channel]['transducer_frequency'][0] // 1000
+        # This is only needed for GRIDDED
+        # MainFrequency = channels[channel]['transducer_frequency'][0] // 1000
 
         comment = 'Processing pc_' + channel + ' consisting of ' + str(name)
         print(comment)
@@ -35,7 +35,8 @@ def raw2pc(inputdir, outputdir, channels, debug=False):
         ksi.add(ksm.EmptyPingRemoval())
         ksi.add(ksm.NetcdfWriter(Active="true",
                                  DirName='pc_' + str(channel),
-                                 MainFrequency=str(MainFrequency),
+                                 # MainFrequency=str(MainFrequency),
+                                 MaxRange=400,
                                  WriterType="CHANNEL_GROUPS",
                                  GriddedOutputType="PULSE_COMPRESSION",
                                  WriteAngels="true",
