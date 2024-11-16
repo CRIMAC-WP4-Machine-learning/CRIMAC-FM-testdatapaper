@@ -12,7 +12,7 @@ You will need a working installation of Korona and python. The code has been tes
 
 The required python libraries for python 3.8 are listed in the [requirements.txt](requirements.txt) file. To install the packages you can run `pip install -r requirements.txt` from the terminal.
 ```diff
-Add pandas version to requirements? pandas.util is depreciated
+-Add pandas version to requirements? pandas.util is depreciated
 ```
 
 You need to install LSSS/Korona, follow the instructions here: [link](https://github.com/CRIMAC-WP4-Machine-learning/CRIMAC-KoronaScript/blob/master/README.md#install-lssskorona)
@@ -39,7 +39,7 @@ The file `DataSets.csv` contain the list of test data sets.
 
 To obtain the test data you need to run `python3 get_data_S3.py`. The data will be downloaded from the IMR S3 server and placed under `${CRIMACSCRATCH}/CRIMAC-FM-testdata`. Each individual test data set will be placed under `/{year}/{testdataset}`.
 ```diff
-get_data_S3.py isn't a part of the repository any more, use get_data.py?
+-get_data_S3.py isn't a part of the repository any more, use get_data.py?
 ```
 
 Note that the `get_data.py` moves the data from the backed up crimac storage to the S3 bucket, and must be run on one of IMR servers.
