@@ -1,6 +1,7 @@
 # this script uses Ingrid library to compute the track boundaries
 # This module: https://github.com/CRIMAC-WP4-Machine-learning/CRIMAC-fm-sed
 import pandas as pd
+import xarray as xr
 import os
 import matplotlib.pyplot as plt
 import numpy as np
@@ -74,6 +75,9 @@ for i, row in df.iterrows():
 
         raw_data_dir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                      _dataset, 'ACOUSTIC', 'EK80', 'EK80_RAWDATA')
+        _outputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
+                                 _dataset, 'ACOUSTIC',
+                                 'GRIDDED')
         if os.path.exists(_inputdir) and os.path.exists(raw_data_dir):
             channels, con, ind = raw2meta(raw_data_dir)
 
@@ -108,8 +112,14 @@ for i, row in df.iterrows():
                     tracking_df = tracking_pipeline.process()
 
                     # Save tracking dataframe
-                    save_path = os.path.join(split_dir, f'{file.replace(".nc", "")}_tracks.csv')
-                    tracking_df.to_csv(save_path, index=False)
+                    save_path = os.path.join(_outputdir, f'track_{split}',  f'{file.replace(".nc", "")}_tracks.nc')
+                    #tracking_df.to_csv(save_path, index=False)
+                    if  not os.path.exists(os.path.join(_outputdir, f'track_{split}')):
+                        os.mkdir(os.path.join(_outputdir, f'track_{split}'))
+
+                    tracking_df.to_xarray().to_netcdf(save_path)
+                    
+
 
                     # Save figure for each frequency
                     data_reader = tracking_pipeline.reader

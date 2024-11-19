@@ -10,6 +10,8 @@ from datetime import datetime
 import glob
 from time import time
 import matplotlib as plt
+import json
+
 '''
 YNGVE: Added function for calculating TSf. Needs clean up. NEED TO VERIFY OUTPUT.
 - It works with vectorized data input, so that, for a given frequency all the
@@ -93,11 +95,148 @@ def calcAbsorption(t, s, d, c, f):
     )
     return a / 1000
 
+
+def calcTransducerHalves(y_pc_nu):
+    """
+    Calculate the half transducer pulse compressed signals from the four 
+    sectors in a 4-sector transducer.
+    
+    Parameters
+    ----------
+    y_pc_nu : np.array
+        The pulse compressed data from each receiver/transducer sector [V]
+    
+    Returns
+    -------
+    y_pc_fore_n : np.array
+        Signal from the forward half of the transducer [V]
+    y_pc_aft_n : np.array
+        Signal from the aft half of the transducer [V]
+    y_pc_star_n : np.array
+        Signal from the starboard half of the transducer [V]
+    y_pc_port_n : np.array
+        Signal from the port half of the transducer [V]
+    """
+    y_pc_fore_n = 0.5 * (y_pc_nu[:, 2, :] + y_pc_nu[:, 3, :])
+    y_pc_aft_n = 0.5 * (y_pc_nu[:, 0, :] + y_pc_nu[:, 1, :])
+    y_pc_star_n = 0.5 * (y_pc_nu[:, 0, :] + y_pc_nu[:, 3, :])
+    y_pc_port_n = 0.5 * (y_pc_nu[:, 1, :] + y_pc_nu[:, 2, :])
+    return y_pc_fore_n, y_pc_aft_n, y_pc_star_n, y_pc_port_n
+
+
+def calcAngles(y_pc_halves, gamma_theta, gamma_phi):
+    """
+    Calculate splitbeam angles from 4 quadrant receiver/transducer data.
+    
+    Parameters
+    ----------
+    y_pc_halves : np.array
+        Pulse compressed signal from transducer halves [V]
+    gamma_theta : float
+         Major axis conversion factor from electrical splitbeam angles to physical angles []
+    gamma_phi : float
+        Minor axis conversion factor from electrical splitbeam angles to physical angles []
+    
+    Returns
+    -------
+    theta_n : np.array
+        Major axis physical splitbeam angles [°]
+    phi_n : np.array
+        Minor axis physical splitbeam angles [°]
+    
+    """
+
+    y_pc_fore_n, y_pc_aft_n, y_pc_star_n, y_pc_port_n = y_pc_halves
+    y_theta_n = y_pc_fore_n * np.conj(y_pc_aft_n)
+    y_phi_n = y_pc_star_n * np.conj(y_pc_port_n)
+
+    theta_n = (
+        np.arcsin(np.arctan2(np.imag(y_theta_n), np.real(y_theta_n)) / gamma_theta)
+        * 180
+        / np.pi
+    )
+
+    phi_n = (
+        np.arcsin(np.arctan2(np.imag(y_phi_n), np.real(y_phi_n)) / gamma_phi)
+        * 180
+        / np.pi
+    )
+
+    return theta_n, phi_n
+
+
+def calcAngles(y_pc_halves, gamma_theta, gamma_phi):
+    """
+    Calculate splitbeam angles from 4 quadrant receiver/transducer data.
+    
+    Parameters
+    ----------
+    y_pc_halves : np.array
+        Pulse compressed signal from transducer halves [V]
+    gamma_theta : float
+         Major axis conversion factor from electrical splitbeam angles to physical angles []
+    gamma_phi : float
+        Minor axis conversion factor from electrical splitbeam angles to physical angles []
+    
+    Returns
+    -------
+    theta_n : np.array
+        Major axis physical splitbeam angles [°]
+    phi_n : np.array
+        Minor axis physical splitbeam angles [°]
+    
+    """
+
+    y_pc_fore_n, y_pc_aft_n, y_pc_star_n, y_pc_port_n = y_pc_halves
+    y_theta_n = y_pc_fore_n * np.conj(y_pc_aft_n)
+    y_phi_n = y_pc_star_n * np.conj(y_pc_port_n)
+
+    theta_n = (
+        np.arcsin(np.arctan2(np.imag(y_theta_n), np.real(y_theta_n)) / gamma_theta)
+        * 180
+        / np.pi
+    )
+
+    phi_n = (
+        np.arcsin(np.arctan2(np.imag(y_phi_n), np.real(y_phi_n)) / gamma_phi)
+        * 180
+        / np.pi
+    )
+
+    return theta_n, phi_n
+
+
+def construct_full_TSf(TSf_t, freq_tot, f_m):
+    TSf_tot = np.full((len(TSf_t),len(freq_tot)),fill_value=np.nan)
+    for k, (frequencies, TS) in enumerate(zip(f_m, TSf_t)):
+        max_idx = np.argmax(np.convolve(frequencies,np.flip(freq_tot))) + 1
+        idx = np.arange(max_idx-len(frequencies),max_idx)
+        TSf_tot[k][idx] = TS
+    
+    TSf_tot = np.round(TSf_tot, 3) # round TSf values to three decimal places
+    return TSf_tot
+
+
+def construct_full_freqs(raw_pc, delta_f):
+    # Make frequency array for all available frequencies
+    freq_tot = []
+    for channel in raw_pc:
+        f0 = channel['transmit_frequency_start'].values
+        f0 = f0[~np.isnan(f0)][0]
+        f1 = channel['transmit_frequency_stop'].values
+        f1 = f1[~np.isnan(f1)][0]
+        freq_temp= calcFrequencyArray(delta_f,f0,f1)
+        freq_tot.append(freq_temp)
+    return np.hstack(freq_tot) 
+
+
+
 def TSf(
         data,
         tracks,
         frequency,
-        FFT_params = None
+        FFT_params = None,
+        CTD = None
         ):
 
     '''
@@ -120,7 +259,7 @@ def TSf(
     '''
 
 
-    # Extract data from dataframe
+     # Extract data from dataframe
     ping_time = data['ping_time'].to_numpy()
     z_rx_e = data['transceiver_impedance'].to_numpy()
     f_0 = data['transmit_frequency_start'].to_numpy()
@@ -144,34 +283,30 @@ def TSf(
     y_mf_auto_red_im = data['y_mf_auto_red_im'].to_numpy()
     theta_n = data['angle_alongship'].to_numpy()
     phi_n = data['angle_athwartship'].to_numpy()
+    p_tx_e = data['transmit_power'].to_numpy()
     track_ping_time = tracks['ping_time'].to_numpy()
     r_t = tracks['single_target_range'].to_numpy()
+    z_td_e = 75
     
-    salinity = None # NOT YET READ FROM DATA
-    temperature = None # NOT YET READ FROM DATA
+    
     if FFT_params is not None:
-        FFTbefore = FFT_params['FFTbefore']
-        FFTafter = FFT_params['FFTafter']
-        delta_f = FFT_params['delta_f']
+        FFTbefore = FFT_params[str(frequency)]['FFTbefore']
+        FFTafter = FFT_params[str(frequency)]['FFTafter']
+        delta_f = FFT_params['delta_frequency']
     else:
         FFTbefore = 0.5
         FFTafter = 0.5
         delta_f = 100
-    if salinity is not None:
-        salinity = data['salinity']
+    if CTD is not None:
+        salinity = CTD['salinity'].values
+        temperature = CTD['temperature'].values
     else:
-        salinity = 30 # default value chosen from D2023006 CTD
-
-    if temperature is not None:
-        temperature = data['temperature']
-    else:
-        temperature = 15 # default value chosen from D2023006 CTD
+        salinity = 30. # default value chosen from D2023006 CTD
+        temperature = 15. # default value chosen from D2023006 CTD
 
     # Attenuation is not included, because I don't know where it should come from.
      # len(dB_G0)#.shape[1]#
     f_c = f_0 + (f_1 - f_0)/2
-    p_tx_e = 100 #HARD CODE CHANGE?
-    z_td_e = 75 #HARD CODE CHANGE?
     f_n = frequency
     # If f_0 and or f_1 are outside the range in calibration frequencies NO(f_0 and f_1
     # are changed to be at the edges of the available calibration frequencies.)
@@ -222,6 +357,13 @@ def TSf(
 
     # Average signal over all channels (transducer sectors)
     y_pc_n = np.sum(y_pc_nu, axis=1) / y_pc_nu.shape[1]
+
+    # Average signals over paired channels corresponding to transducer halves
+    # fore, aft, starboard, port
+    y_pc_halves_n = calcTransducerHalves(y_pc_nu)
+
+    # Physical angles
+    theta_n, phi_n = calcAngles(y_pc_halves_n, gamma_theta_f_c, gamma_phi_f_c)
 
     # TARGET STRENGTH
     #
@@ -284,6 +426,9 @@ def TSf(
         )
     g0_m_interp = np.power(10, dB_G0_interp / 10)
 
+
+    FFTbefore_list = []
+    FFTafter_list = []
     # Loop through all pings
     for i in tqdm(range(len(track_ping_time))):
         tolerance = np.timedelta64(1, 'ms')
@@ -379,26 +524,24 @@ def TSf(
                 + 2 * alpha_m * r_t[i]
                 - 10
                 * np.log10(
-                    (p_tx_e * lambda_m[ping_idx]**2 * g_theta_phi_m**2) / (16 * np.pi**2)
+                    (p_tx_e[ping_idx] * lambda_m[ping_idx]**2 * g_theta_phi_m**2) / (16 * np.pi**2)
                 )
             )
         freqs.append(f_m)
-
+        FFTbefore_list.append(FFTbefore)
+        FFTafter_list.append(FFTafter)
+    
     return [
         TS_m,
         freqs,
+        FFTbefore_list,
+        FFTafter_list,
         r_t,
         theta_t,
         phi_t,
-        mean_relative_amplitude_pre_peak,
-        mean_relative_amplitude_post_peak,
-        mean_theta_t,
-        mean_phi_t,
-        var_theta_t,
-        var_phi_t
         ]
 
-def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_meters=0.5, FFTafter_meters=0.5)->list:
+def pc2tsf(trackdir: str, ncdir: str, outputdir: str, FFTdir):
     '''
     calculate the power spectrum of a detected targets.
     :param target_fp: the detected track CSV full path. CSV file format is given by Ingrid
@@ -410,38 +553,37 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_met
     :return: list of power spectra per target per ping
     '''
 
-    FFT = {
-        'FFTbefore': FFTbefore_meters,
-        'FFTafter': FFTafter_meters,
-        'delta_f': delta_f
-    }
+    # Read FFT parameters for dataset.
+    FFTfile = os.path.join(FFTdir,'FFT.json')
+    with open(FFTfile, 'r') as file:
+        FFT = json.load(file)
 
-        # List NC files
-    #trackdir = inputdirTracks#os.path.join(pcdir, 'pc')
+    # List NC files
     trackfiles = glob.glob(os.path.join(trackdir, '*.nc'))
-
-    #ncdir = inputdirPC#os.path.join(pcdir, 'pc')
     ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
-   
+
     tTot = time()
     for trackfile in trackfiles:
+        print('Read file: ', trackfile)
+        targets = xr.open_dataset(trackfile, engine='netcdf4')
         
-        trackfilename = os.path.splitext(os.path.basename(trackfile))[0] # extract filename. Needed for file output later
+            
+        trackfilename = os.path.basename(trackfile)[0:17] # extract filename. Needed for file output later
+        print(trackfilename)
+        if targets.sizes['i'] == 0:
+            print('Track file ', trackfilename, " is empty.")
+            continue
         for _ncfile in ncfiles:
-            ncfilename = os.path.splitext(os.path.basename(_ncfile))[0]
-            if ncfilename in trackfilename:
+            ncfilename = os.path.basename(_ncfile)[0:17]
+            if ncfilename == trackfilename:
                 ncfile = _ncfile
                 break
             else:
                 ncfile = None
         if ncfile is None:
             # print('No ncfile that matches trackfile ', trackfile, '. Skipping trackfile.')
-            continue
-        targets = xr.open_dataset(trackfile, engine='netcdf4')
-        if targets.sizes['i'] == 0:
-            print('Track file ', trackfilename, " is empty.")
-            #continue
-        
+            continue   
+
         nc_dataset = Dataset(ncfile, "r")
         grp = list(nc_dataset.groups.keys())
         
@@ -449,23 +591,13 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_met
                     for _grp in grp if not _grp == 'Environment']
         raw_pc_attr = xr.open_dataset(ncfile, engine='netcdf4')
         freqs_raw_pc = raw_pc_attr['frequency'].values
-
-        if 'sv' in raw_pc_all[0]:
-            print('CW data. Skipping ', ncfile, '.')
-            continue
-
-        print('Read file: ', trackfile)
-        
+      
         # Make frequency array for all available frequencies
-        freq_tot = []
-        freq_idx = []
-        for channel in raw_pc_all:
-            f0 = channel['transmit_frequency_start'].values[0]
-            f1 = channel['transmit_frequency_stop'].values[0]
-            freq_temp= calcFrequencyArray(delta_f,f0,f1)
-            freq_tot.append(freq_temp)
-        freq_tot = np.hstack(freq_tot)  
+        freq_tot = construct_full_freqs(raw_pc_all, FFT['delta_frequency']) 
         
+        env_data = xr.open_dataset(ncfile, engine='netcdf4', group='Environment')
+        
+
         freqs_targets = sorted(set(targets['frequency'].values))
         if len(freqs_targets) == 0:
             print('No tracked channels in file ', trackfilename)
@@ -479,47 +611,40 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_met
             
             # Filter targets to only include current frequency:
             filtered_targets = targets.where(targets['frequency'] == freq, drop=True)
-            
+            df = filtered_targets.to_dataframe().reset_index()
+            df_unique = df.drop_duplicates(keep='first')
+            if df.shape[0] != df_unique.shape[0]:
+                print(df.shape,df_unique.shape)
+                print('')
             if len(filtered_targets) == 0:
                 print('No targets left after filtering')
-                 # skip frequency if no targets present
+                # skip frequency if no targets present
+            
             [
                 TSf_t,
                 f_m,
+                _FFT_before,
+                _FFTafter,
                 r_t,
                 theta,
                 phi,
-                mean_relative_log_amplitude_pre_peak,
-                mean_relative_log_amplitude_post_peak,
-                mean_theta_t,
-                mean_phi_t,
-                var_theta_t,
-                var_phi_t
-                ] = TSf(raw_pc, filtered_targets, freq, FFT)
-            TSf_tot = None
-            before = np.where(freq_tot == f_m[0][0])[0].astype(int)[-1]
-            after = (len(freq_tot) - np.where(freq_tot == f_m[0][-1])[0]-1 - before).astype(int)[0]
-            TSf_tot = np.pad(TSf_t,((0,0),(before,after)),'constant', constant_values=(np.nan, np.nan))
-            
+                ] = TSf(raw_pc, filtered_targets, freq, FFT_params=FFT, CTD=env_data)
 
+            TSf_tot = construct_full_TSf(TSf_t,freq_tot,f_m)
+            
 
             output_temp = xr.Dataset(
                 {
                     'channel_frequency': (['i'], np.full(r_t.shape,freq)),
                     'pulse_length': (['i'], np.full(r_t.shape,raw_pc_attr['pulse_length'][raw_index].values)),
                     'ping_time': (['i'], filtered_targets['ping_time'].values),
-                    #'frequency': (['i', 'frequency'], f_m),
                     'TSf': (['i', 'frequency'], TSf_tot),
+                    'FFT_before': (['i'], _FFT_before),
+                    'FFT_after': (['i'], _FFTafter),
                     'single_target_identifier': (['i'], np.int64(filtered_targets['single_target_identifier'].values)),
                     'single_target_range': (['i'], r_t),
                     'single_target_alongship_angle': (['i'], theta),
-                    'single_target_athwartship_angle': (['i'], phi),
-                    'mean_relative_log_amplitude_pre_peak': (['i'], mean_relative_log_amplitude_pre_peak),
-                    'mean_relative_log_amplitude_post_peak': (['i'], mean_relative_log_amplitude_post_peak),
-                    'mean_theta_t': (['i'], mean_theta_t),
-                    'mean_phi_t': (['i'], mean_phi_t),
-                    'var_theta_t': (['i'], var_theta_t),
-                    'var_phi_t': (['i'], var_phi_t)
+                    'single_target_athwartship_angle': (['i'], phi)
                },
                coords={
                         "i": np.arange(n_i, n_i + r_t.shape[0]),        
@@ -527,7 +652,6 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_met
                }
             )
             n_i += r_t.shape[0]
-            print('Concat xarray')
             if i == 0:
                 currentfile_output = output_temp
             else:
@@ -538,12 +662,10 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, delta_f=100, FFTbefore_met
             filename = trackfilename + '_TSf.nc'
             
             output_fp = os.path.join(outputdir, filename)
-            #print("Writing TSf data to file: ", oufput_fp)
-            #write_to_nc(oufput_fp, trackfile, currentfile_output, raw_pc['ping_stamp_unit'])
             print('Save to file ', filename)
             if not os.path.exists(outputdir):
                 os.makedirs(outputdir)
-            encoding = {var: {"zlib": True, "complevel": 3} for var in currentfile_output.data_vars}
+            encoding = {var: {"zlib": True, "complevel": 5} for var in currentfile_output.data_vars}
             currentfile_output.to_netcdf(output_fp, encoding=encoding)
 
     print(time()-tTot)
@@ -564,10 +686,13 @@ for _dataset in df['dataset']:
                                     'LSSS', 'KORONA')
     outputdir = os.path.join(   crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                                 _dataset, 'ACOUSTIC', 'TSF')
+    
+    inputdirFFT = os.path.join('Config', _dataset)
        
     if os.path.exists(inputdirPC) and os.path.exists(inputdirTracks):
         for dirPC, dirTracks in zip(os.listdir(inputdirPC), os.listdir(inputdirTracks)):
-            
+            if dirPC[-1] == '1':
+                continue # skip CW data. NEED WAY TO INCLUDE CW 
             currentInputdirPC = os.path.join(inputdirPC,dirPC)
             currentInputdirTracks = os.path.join(inputdirTracks,dirTracks)
             currentOutputdir = os.path.join(outputdir,'TSf_'+ dirPC[-1])
@@ -585,7 +710,7 @@ for _dataset in df['dataset']:
             print(' ')
             '''
             print('*****************pc2tsf****************************')
-            pc2tsf(currentInputdirTracks,currentInputdirPC, currentOutputdir)
+            pc2tsf(currentInputdirTracks,currentInputdirPC, currentOutputdir, inputdirFFT)
             print(' ')
             print(' ')
 print(' Total time: ', time()-timestart)
