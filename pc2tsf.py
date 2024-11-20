@@ -1,28 +1,20 @@
-# this script reads track definitions and estimate TSf
-
 import numpy as np
 import os
 from tqdm import tqdm
 import pandas as pd
 import xarray as xr
-from netCDF4 import Dataset
-from datetime import datetime
 import glob
-from time import time
-import matplotlib as plt
 import json
 
 '''
-YNGVE: Added function for calculating TSf. Needs clean up. NEED TO VERIFY OUTPUT.
-- It works with vectorized data input, so that, for a given frequency all the
-imported pings and targets can be fed directly.
-- One frequency from one file is read and calculated at each loop iteration.
-This is done so that it's easy to export a file containing track and TSf data
-with a name corresponding to the source file.
-
-Input params are dicts named 'data', 'tracks' and 'FFT_params' . The contents
-can be read from the list of variables.
-The function returns TS(f), target_ranges, target_angle_alongship, target_angle_athwartship.
+PREREQUISITES:
+Run raw2tracks.py to extract trackfiles
+    outputfolder from raw2tracks.py used as inputdirTracks here
+    trackfiles with names inherited from raw files.
+Run raw2pc.py to extract pulse compressed data
+    outputfolder from raw2pc.py used as inputdirPC here
+    pc-files with names inherited from raw files.
+FFT parameters in "\\config\\_dataset\\FFT.json". 
 '''
 
 def calcFrequencyArray(delta_f, f0, f1):
@@ -165,47 +157,6 @@ def calcAngles(y_pc_halves, gamma_theta, gamma_phi):
     return theta_n, phi_n
 
 
-def calcAngles(y_pc_halves, gamma_theta, gamma_phi):
-    """
-    Calculate splitbeam angles from 4 quadrant receiver/transducer data.
-    
-    Parameters
-    ----------
-    y_pc_halves : np.array
-        Pulse compressed signal from transducer halves [V]
-    gamma_theta : float
-         Major axis conversion factor from electrical splitbeam angles to physical angles []
-    gamma_phi : float
-        Minor axis conversion factor from electrical splitbeam angles to physical angles []
-    
-    Returns
-    -------
-    theta_n : np.array
-        Major axis physical splitbeam angles [°]
-    phi_n : np.array
-        Minor axis physical splitbeam angles [°]
-    
-    """
-
-    y_pc_fore_n, y_pc_aft_n, y_pc_star_n, y_pc_port_n = y_pc_halves
-    y_theta_n = y_pc_fore_n * np.conj(y_pc_aft_n)
-    y_phi_n = y_pc_star_n * np.conj(y_pc_port_n)
-
-    theta_n = (
-        np.arcsin(np.arctan2(np.imag(y_theta_n), np.real(y_theta_n)) / gamma_theta)
-        * 180
-        / np.pi
-    )
-
-    phi_n = (
-        np.arcsin(np.arctan2(np.imag(y_phi_n), np.real(y_phi_n)) / gamma_phi)
-        * 180
-        / np.pi
-    )
-
-    return theta_n, phi_n
-
-
 def construct_full_TSf(TSf_t, freq_tot, f_m):
     TSf_tot = np.full((len(TSf_t),len(freq_tot)),fill_value=np.nan)
     for k, (frequencies, TS) in enumerate(zip(f_m, TSf_t)):
@@ -230,15 +181,7 @@ def construct_full_freqs(raw_pc, delta_f):
     return np.hstack(freq_tot) 
 
 
-
-def TSf(
-        data,
-        tracks,
-        frequency,
-        FFT_params = None,
-        CTD = None
-        ):
-
+def TSf(data, tracks, frequency, FFT_params = None, CTD = None):
     '''
     Data input for one frequency at a time. Calculates TSf and associated 
     data for tracked echosounder data.
@@ -246,20 +189,19 @@ def TSf(
     
     Parameters
     --------
-    data : dataframe
-        Dataframe of numpy arrays containing data required for calculating TSf
-    tracks : dataframe
-        dataframe of track info, namely ping_time and range
+    data : xarray dataset
+        Xarray dataset of arrays containing data required for calculating TSf
+    tracks : xarray dataset
+        Xarray dataset of track info, namely ping_time and range
     FFT_params:   dict 
         containing FFT window length in meters before ('FFTbefore') and 
         after ('FFTafter') peak, and desired resolution in frequency 
         ('delta_f'). Presumed to be the same for all pings in 'data'.
-
-    To reduce function call overhead, the structure uses no sub-functions.
+    CTD: dict
+        containing salinity and temperature data
     '''
 
-
-     # Extract data from dataframe
+     # Extract data from xarray. CAN THIS BE DONE MORE EFFICIENTLY?
     ping_time = data['ping_time'].to_numpy()
     z_rx_e = data['transceiver_impedance'].to_numpy()
     f_0 = data['transmit_frequency_start'].to_numpy()
@@ -293,7 +235,7 @@ def TSf(
         FFTbefore = FFT_params[str(frequency)]['FFTbefore']
         FFTafter = FFT_params[str(frequency)]['FFTafter']
         delta_f = FFT_params['delta_frequency']
-    else:
+    else: #default FFT parameters
         FFTbefore = 0.5
         FFTafter = 0.5
         delta_f = 100
@@ -304,8 +246,6 @@ def TSf(
         salinity = 30. # default value chosen from D2023006 CTD
         temperature = 15. # default value chosen from D2023006 CTD
 
-    # Attenuation is not included, because I don't know where it should come from.
-     # len(dB_G0)#.shape[1]#
     f_c = f_0 + (f_1 - f_0)/2
     f_n = frequency
     # If f_0 and or f_1 are outside the range in calibration frequencies NO(f_0 and f_1
@@ -313,7 +253,6 @@ def TSf(
     # variables that are to be interpolated are padded with the edge value QUESTIONNABLE PRACTICE
     # Otherwise, the interpolation step fails.
     if f_0[0] < np.min(calibration_frequencies):
-        #f_0[0] = np.min(calibration_frequencies)
         calibration_frequencies = np.hstack([f_0[0],calibration_frequencies])
         dB_G0 = np.hstack([dB_G0[0],dB_G0])
         angle_offset_alongship = np.hstack([angle_offset_alongship[0],angle_offset_alongship])
@@ -331,7 +270,6 @@ def TSf(
     # Initialize frequency vectors
     n_f_points = np.int64(1 + np.round((f_1-f_0)/delta_f))[0]
     f_m = np.linspace(f_0[0], f_1[0], n_f_points)
-    
     f_s_dec = 1/sample_interval
 
     # Wavelength at center frequency and f_m
@@ -387,24 +325,8 @@ def TSf(
     freqs = []
     theta_t = []
     phi_t = []
-    # include measure of relative energy m samples after peak, where m corresponds to 1 meter. !!!!
-    # To be used for estimating proximity to peaks after current peak
-    # Maybe need better name
-    if (r_n[1]-r_n[0]) == 0:
-        print('')
-    
-    m_samples = np.int64(1/(r_n[1]-r_n[0]))
-    mean_relative_amplitude_pre_peak = []
-    mean_relative_amplitude_post_peak = []
-    # take mean and variance of n samples before and after peak:
-    n = 5 # start with hard coding number of samples. To be changed to some measure relative to sample spacing???
-    mean_theta_t = []
-    mean_phi_t = []
-    var_theta_t = []
-    var_phi_t = []
 
     # r_t is taken directly from track input. No target detector is applied.
-
 
     # Interpolate
         # angle_offset, beamwidth, dB_g0
@@ -426,7 +348,6 @@ def TSf(
         )
     g0_m_interp = np.power(10, dB_G0_interp / 10)
 
-
     FFTbefore_list = []
     FFTafter_list = []
     # Loop through all pings
@@ -436,18 +357,12 @@ def TSf(
             ping_idx =  np.where(np.abs(ping_time-track_ping_time[i])<=tolerance)[0][0]
 
         except:
-            #print("No available ping for track no.", i)
+            print("No available ping for track no.", i)
             theta_t.append(np.nan)
             phi_t.append(np.nan)
             TS_m.append(
                 np.full(len(f_m),np.nan)
                 )
-            mean_relative_amplitude_pre_peak.append(np.nan)
-            mean_relative_amplitude_post_peak.append(np.nan)
-            mean_theta_t.append(np.nan)
-            mean_phi_t.append(np.nan)
-            var_theta_t.append(np.nan)
-            var_phi_t.append(np.nan)
             freqs.append(f_m)
             continue
 
@@ -458,33 +373,6 @@ def TSf(
         # Extract pulse compressed samples "before" and "after" the peak power
         Idx = np.where((r_n >= r_t_begin[i]) & (r_n <= r_t_end[i]))
         y_pc_t_n  = y_pc_n[ping_idx][Idx]
-
-        mean_relative_amplitude_pre_peak.append(
-            np.mean(
-                np.abs(
-                    y_pc_n[ping_idx][idx_peak_p_rx-m_samples:idx_peak_p_rx]
-                    )
-                )
-                /
-                np.abs(
-                    y_pc_n[ping_idx][idx_peak_p_rx]
-                    )
-            )
-        mean_relative_amplitude_post_peak.append(
-            np.mean(
-                np.abs(
-                    y_pc_n[ping_idx][idx_peak_p_rx+1:idx_peak_p_rx+m_samples+1]
-                    )
-                )
-                /
-                np.abs(
-                    y_pc_n[ping_idx][idx_peak_p_rx]
-                    )
-        )
-        mean_theta_t.append(np.mean(theta_n[ping_idx][idx_peak_p_rx-n:idx_peak_p_rx+n]))
-        mean_phi_t.append(np.mean(phi_n[ping_idx][idx_peak_p_rx-n:idx_peak_p_rx+n]))
-        var_theta_t.append(np.var(theta_n[ping_idx][idx_peak_p_rx-n:idx_peak_p_rx+n]))
-        var_phi_t.append(np.var(phi_n[ping_idx][idx_peak_p_rx-n:idx_peak_p_rx+n]))
 
         # DFT of target signal, DFT of reduced auto correlation signal, and
         # normalized DFT of target signal
@@ -541,6 +429,7 @@ def TSf(
         phi_t,
         ]
 
+
 def pc2tsf(trackdir: str, ncdir: str, outputdir: str, FFTdir):
     '''
     calculate the power spectrum of a detected targets.
@@ -562,12 +451,9 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, FFTdir):
     trackfiles = glob.glob(os.path.join(trackdir, '*.nc'))
     ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
 
-    tTot = time()
     for trackfile in trackfiles:
         print('Read file: ', trackfile)
         targets = xr.open_dataset(trackfile, engine='netcdf4')
-        
-            
         trackfilename = os.path.basename(trackfile)[0:17] # extract filename. Needed for file output later
         print(trackfilename)
         if targets.sizes['i'] == 0:
@@ -595,9 +481,9 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, FFTdir):
         # Make frequency array for all available frequencies
         freq_tot = construct_full_freqs(raw_pc_all, FFT['delta_frequency']) 
         
+        # Read environmental data
         env_data = xr.open_dataset(ncfile, engine='netcdf4', group='Environment')
         
-
         freqs_targets = sorted(set(targets['frequency'].values))
         if len(freqs_targets) == 0:
             print('No tracked channels in file ', trackfilename)
@@ -631,7 +517,6 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, FFTdir):
                 ] = TSf(raw_pc, filtered_targets, freq, FFT_params=FFT, CTD=env_data)
 
             TSf_tot = construct_full_TSf(TSf_t,freq_tot,f_m)
-            
 
             output_temp = xr.Dataset(
                 {
@@ -668,49 +553,43 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, FFTdir):
             encoding = {var: {"zlib": True, "complevel": 5} for var in currentfile_output.data_vars}
             currentfile_output.to_netcdf(output_fp, encoding=encoding)
 
-    print(time()-tTot)
 
+if __name__ == "__main__":
+    # Read metadata & env variables
+    df = pd.read_csv('testdata.csv')
+    crimac = os.getenv('CRIMACSCRATCH')
 
-# Read metadata & env variables
-df = pd.read_csv('testdata.csv')
-crimac = os.getenv('CRIMACSCRATCH')
+    for _dataset in df['dataset']:
 
-timestart = time()
-for _dataset in df['dataset']:
+        inputdirPC = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
+                                _dataset, 'ACOUSTIC',
+                                    'GRIDDED')
+        inputdirTracks = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
+                                        _dataset, 'ACOUSTIC',
+                                        'LSSS', 'KORONA')
+        outputdir = os.path.join(   crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
+                                    _dataset, 'ACOUSTIC', 'TSF')
+        inputdirFFT = os.path.join('config', _dataset)
 
-    inputdirPC = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
-                            _dataset, 'ACOUSTIC',
-                                'GRIDDED')
-    inputdirTracks = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
-                                    _dataset, 'ACOUSTIC',
-                                    'LSSS', 'KORONA')
-    outputdir = os.path.join(   crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
-                                _dataset, 'ACOUSTIC', 'TSF')
-    
-    inputdirFFT = os.path.join('Config', _dataset)
-       
-    if os.path.exists(inputdirPC) and os.path.exists(inputdirTracks):
-        for dirPC, dirTracks in zip(os.listdir(inputdirPC), os.listdir(inputdirTracks)):
-            if dirPC[-1] == '1':
-                continue # skip CW data. NEED WAY TO INCLUDE CW 
-            currentInputdirPC = os.path.join(inputdirPC,dirPC)
-            currentInputdirTracks = os.path.join(inputdirTracks,dirTracks)
-            currentOutputdir = os.path.join(outputdir,'TSf_'+ dirPC[-1])
-            # Add reading of FFT parameters from file?
-            print('***************************************************')
-            print('*****************'+_dataset+'**************************')
-            print('*****************'+dirPC+'****************************')
-            #
-            '''
-            print(' ')
-            print(inputdirPC)
-            print(inputdirTracks)
-            print(outputdir)
-            print(' ')
-            print(' ')
-            '''
-            print('*****************pc2tsf****************************')
-            pc2tsf(currentInputdirTracks,currentInputdirPC, currentOutputdir, inputdirFFT)
-            print(' ')
-            print(' ')
-print(' Total time: ', time()-timestart)
+        if os.path.exists(inputdirPC) and os.path.exists(inputdirTracks):
+            for dirPC, dirTracks in zip(os.listdir(inputdirPC), os.listdir(inputdirTracks)):
+                '''
+                INSERT WAY TO SKIP OR HANDLE CW DATA. CURRENTLY THIS SCRIPT ONLY HANDLES 
+                PULSE COMPRESSED DATA FROM FREQUENCY MODULATED PULSE TYPES.
+                '''
+                currentInputdirPC = os.path.join(inputdirPC,dirPC)
+                currentInputdirTracks = os.path.join(inputdirTracks,dirTracks)
+                currentOutputdir = os.path.join(outputdir,'TSf_'+ dirPC[-1])
+                print('***************************************************')
+                print('*****************'+_dataset+'**************************')
+                print('*****************'+dirPC+'****************************')
+                print(' ')
+                print(inputdirPC)
+                print(inputdirTracks)
+                print(outputdir)
+                print(' ')
+                print(' ')
+                print('*****************pc2tsf****************************')
+                pc2tsf(currentInputdirTracks,currentInputdirPC, currentOutputdir, inputdirFFT)
+                print(' ')
+                print(' ')
