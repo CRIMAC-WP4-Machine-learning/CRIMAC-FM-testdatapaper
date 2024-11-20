@@ -11,6 +11,8 @@ PREREQUISITES:
 Run raw2tracks.py to extract trackfiles
     outputfolder from raw2tracks.py used as inputdirTracks here
     trackfiles with names inherited from raw files.
+    trackfiles are netcdf4 files with these variables:
+    i,frequency[Hz],ping_time[datetime64['ns']],single_target_identifier[int],single_target_range[m],single_target_start_range[m],single_target_stop_range[m]
 Run raw2pc.py to extract pulse compressed data
     outputfolder from raw2pc.py used as inputdirPC here
     pc-files with names inherited from raw files.

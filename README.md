@@ -81,7 +81,7 @@ Based on the pulsecompressed data and the track definitions, estimate TS(f) per 
 
 The tracking code can be found here: ?
 
-TODO: The script reads the pulse compressed data and track definitions for each test data set at `ACOUSTIC/GRIDDED/pc_{i}`, run the TS(f) estimation and store the output under `ACOUSTIC/GRIDDED/pc_{i}/??.??`.
+The script reads the pulse compressed data and track definitions for each test data set at `ACOUSTIC/GRIDDED/pc_{i}`, run the TS(f) estimation and store the output under `ACOUSTIC/TSf_{i}/`.
 
 
 
