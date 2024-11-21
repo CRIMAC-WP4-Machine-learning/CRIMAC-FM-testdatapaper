@@ -580,6 +580,8 @@ if __name__ == "__main__":
                 INSERT WAY TO SKIP OR HANDLE CW DATA. CURRENTLY THIS SCRIPT ONLY HANDLES 
                 PULSE COMPRESSED DATA FROM FREQUENCY MODULATED PULSE TYPES.
                 '''
+                if dirPC[-1] == '1': # Placeholder code to skip CW data in the testdatasets.
+                    continue
                 currentInputdirPC = os.path.join(inputdirPC,dirPC)
                 currentInputdirTracks = os.path.join(inputdirTracks,dirTracks)
                 currentOutputdir = os.path.join(outputdir,'TSf_'+ dirPC[-1])
