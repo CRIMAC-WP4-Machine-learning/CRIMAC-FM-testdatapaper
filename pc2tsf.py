@@ -162,11 +162,9 @@ def calcAngles(y_pc_halves, gamma_theta, gamma_phi):
 
 def construct_full_TSf(TSf_t, freq_tot, f_m):
     TSf_tot = np.full((len(TSf_t),len(freq_tot)),fill_value=np.nan)
-    for k, (frequencies, TS) in enumerate(zip(f_m, TSf_t)):
-        max_idx = np.argmax(np.convolve(frequencies,np.flip(freq_tot))) + 1
-        idx = np.arange(max_idx-len(frequencies),max_idx)
-        TSf_tot[k][idx] = TS
-    
+    max_idx = np.argmax(np.convolve(f_m[0],np.flip(freq_tot))) + 1
+    idx = np.arange(max_idx-f_m[0].shape[0],max_idx)
+    TSf_tot[:,idx] = TSf_t
     TSf_tot = np.round(TSf_tot, 3) # round TSf values to three decimal places
     return TSf_tot
 
@@ -553,7 +551,7 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, FFTdir):
             print('Save to file ', filename)
             if not os.path.exists(outputdir):
                 os.makedirs(outputdir)
-            encoding = {var: {"zlib": True, "complevel": 5} for var in currentfile_output.data_vars}
+            encoding = {var: {"zlib": False, "complevel": 5} for var in currentfile_output.data_vars}
             currentfile_output.to_netcdf(output_fp, encoding=encoding)
 
 
