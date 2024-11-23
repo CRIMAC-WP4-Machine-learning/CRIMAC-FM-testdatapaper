@@ -162,8 +162,8 @@ def calcAngles(y_pc_halves, gamma_theta, gamma_phi):
 
 def construct_full_TSf(TSf_t, freq_tot, f_m):
     TSf_tot = np.full((len(TSf_t),len(freq_tot)),fill_value=np.nan)
-    max_idx = np.argmax(np.convolve(f_m[0],np.flip(freq_tot))) + 1
-    idx = np.arange(max_idx-f_m[0].shape[0],max_idx)
+    max_idx = np.argmax(np.convolve(f_m,np.flip(freq_tot))) + 1
+    idx = np.arange(max_idx-f_m.shape[0],max_idx)
     TSf_tot[:,idx] = TSf_t
     TSf_tot = np.round(TSf_tot, 3) # round TSf values to three decimal places
     return TSf_tot
@@ -182,7 +182,43 @@ def construct_full_freqs(raw_pc, delta_f):
     return np.hstack(freq_tot) 
 
 
-def TSf(data, tracks, frequency, FFT_params = None, CTD = None):
+def calculate_beam_pattern(theta, phi, offset_along, offset_athwart, beam_along, beam_athwart):
+        """Calculate beam pattern compensation"""
+        return (0.5 * 6.0206 * (
+            (np.abs(theta[:,None] - offset_along) / (beam_along / 2)) ** 2 +
+            (np.abs(phi[:,None] - offset_athwart) / (beam_athwart / 2)) ** 2 -
+            0.18 * ((np.abs(theta[:,None] - offset_along) / (beam_along / 2)) ** 2 *
+                    (np.abs(phi[:,None] - offset_athwart) / (beam_athwart / 2)) ** 2)
+        ))
+
+
+def process_target_strength(y_pc_t_n, range_t, temp, sal, c_sound, f_m, n_dft, idx, Y_mf_auto_red_m, imp, p_tx_e, lambda_m, g_theta_phi_m, N_u):
+    """Process FFT and calculate target strength"""
+    # FFT processing
+    
+    _Y_pc_t_m = np.fft.fft(y_pc_t_n, n=n_dft,axis=1)
+    Y_pc_t_m = _Y_pc_t_m[:,idx]
+    Y_tilde_pc_t_m = Y_pc_t_m / Y_mf_auto_red_m
+    # Power calculations
+    
+    p_rx = N_u * (np.abs(Y_tilde_pc_t_m) / (2 * np.sqrt(2))) ** 2 * imp
+    # Absorption and target strength
+    alpha = (calcAbsorption(temp, sal, range_t, c_sound, f_m)).T
+    TS = (10 * np.log10(p_rx) + 
+          40 * np.log10(range_t[:,None]) + 
+          2 * alpha * range_t[:,None] - 
+          10 * np.log10((p_tx_e * lambda_m**2 * g_theta_phi_m**2) / (16 * np.pi**2)))
+    return TS
+
+
+def TSf(
+        data,
+        tracks,
+        frequency,
+        FFT_params = None,
+        CTD = None
+        ):
+
     '''
     Data input for one frequency at a time. Calculates TSf and associated 
     data for tracked echosounder data.
@@ -190,53 +226,52 @@ def TSf(data, tracks, frequency, FFT_params = None, CTD = None):
     
     Parameters
     --------
-    data : xarray dataset
-        Xarray dataset of arrays containing data required for calculating TSf
-    tracks : xarray dataset
-        Xarray dataset of track info, namely ping_time and range
+    data : dataframe
+        Dataframe of numpy arrays containing data required for calculating TSf
+    tracks : dataframe
+        dataframe of track info, namely ping_time and range
     FFT_params:   dict 
         containing FFT window length in meters before ('FFTbefore') and 
         after ('FFTafter') peak, and desired resolution in frequency 
         ('delta_f'). Presumed to be the same for all pings in 'data'.
-    CTD: dict
-        containing salinity and temperature data
+
+    To reduce function call overhead, the structure uses no sub-functions.
     '''
 
-     # Extract data from xarray. CAN THIS BE DONE MORE EFFICIENTLY?
-    ping_time = data['ping_time'].to_numpy()
-    z_rx_e = data['transceiver_impedance'].to_numpy()
-    f_0 = data['transmit_frequency_start'].to_numpy()
-    f_1 = data['transmit_frequency_stop'].to_numpy()
-    sample_interval = data['sample_interval'].to_numpy()
-    r_n = data['range'].to_numpy()
-    sound_speed = data['sound_speed'].to_numpy()
-    angle_sensitivity_alongship = data['angle_sensitivity_alongship'].to_numpy()
-    angle_sensitivity_athwartship = data['angle_sensitivity_athwartship'].to_numpy()
-    angle_offset_alongship = data['calibration_angle_offset_alongship'].to_numpy()
-    angle_offset_athwartship = data['calibration_angle_offset_athwartship'].to_numpy()
-    beamwidth_alongship = data['calibration_beamwidth_alongship'].to_numpy()
-    beamwidth_athwartship = data['calibration_beamwidth_athwartship'].to_numpy()
-    #equivalent_beam_angle = data['calibration_equivalent_beam_angle'].to_numpy()  # Remove?
-    calibration_frequencies = data['calibration_frequency'].to_numpy()
-    dB_G0 = data['calibration_gain'].to_numpy()
-    pc_re = data['pulse_compressed_re'].to_numpy()
-    pc_im = data['pulse_compressed_im'].to_numpy()
+    # Extract data from dataframe
+    ping_time = data['ping_time'].values
+    z_rx_e = data['transceiver_impedance'].values
+    f_0 = data['transmit_frequency_start'].values
+    f_1 = data['transmit_frequency_stop'].values
+    sample_interval = data['sample_interval'].values
+    r_n = data['range'].values
+    sound_speed = data['sound_speed'].values
+    angle_sensitivity_alongship = data['angle_sensitivity_alongship'].values
+    angle_sensitivity_athwartship = data['angle_sensitivity_athwartship'].values
+    angle_offset_alongship = data['calibration_angle_offset_alongship'].values
+    angle_offset_athwartship = data['calibration_angle_offset_athwartship'].values
+    beamwidth_alongship = data['calibration_beamwidth_alongship'].values
+    beamwidth_athwartship = data['calibration_beamwidth_athwartship'].values
+    #equivalent_beam_angle = data['calibration_equivalent_beam_angle'].values  # Remove?
+    calibration_frequencies = data['calibration_frequency'].values
+    dB_G0 = data['calibration_gain'].values
+    pc_re = data['pulse_compressed_re'].values
+    pc_im = data['pulse_compressed_im'].values
     N_u = data['pulse_compressed_re'].shape[1]
-    y_mf_auto_red_re = data['y_mf_auto_red_re'].to_numpy()
-    y_mf_auto_red_im = data['y_mf_auto_red_im'].to_numpy()
-    theta_n = data['angle_alongship'].to_numpy()
-    phi_n = data['angle_athwartship'].to_numpy()
-    p_tx_e = data['transmit_power'].to_numpy()
-    track_ping_time = tracks['ping_time'].to_numpy()
-    r_t = tracks['single_target_range'].to_numpy()
+    y_mf_auto_red_re = data['y_mf_auto_red_re'].values
+    y_mf_auto_red_im = data['y_mf_auto_red_im'].values
+    theta_n = data['angle_alongship'].values
+    phi_n = data['angle_athwartship'].values
+    p_tx_e = data['transmit_power'].values
+    track_ping_time = tracks['ping_time'].values
+    r_t = tracks['single_target_range'].values
     z_td_e = 75
-    
-    
+
     if FFT_params is not None:
         FFTbefore = FFT_params[str(frequency)]['FFTbefore']
         FFTafter = FFT_params[str(frequency)]['FFTafter']
         delta_f = FFT_params['delta_frequency']
-    else: #default FFT parameters
+    else:
         FFTbefore = 0.5
         FFTafter = 0.5
         delta_f = 100
@@ -248,19 +283,23 @@ def TSf(data, tracks, frequency, FFT_params = None, CTD = None):
         temperature = 15. # default value chosen from D2023006 CTD
 
     f_c = f_0 + (f_1 - f_0)/2
+    f0 = f_0[~np.isnan(f_0)][0]
+    f1 = f_1[~np.isnan(f_1)][0]
     f_n = frequency
+
     # If f_0 and or f_1 are outside the range in calibration frequencies NO(f_0 and f_1
     # are changed to be at the edges of the available calibration frequencies.)
     # variables that are to be interpolated are padded with the edge value QUESTIONNABLE PRACTICE
     # Otherwise, the interpolation step fails.
-    if f_0[0] < np.min(calibration_frequencies):
+    if f0 < np.min(calibration_frequencies):
+        #f_0[0] = np.min(calibration_frequencies)
         calibration_frequencies = np.hstack([f_0[0],calibration_frequencies])
         dB_G0 = np.hstack([dB_G0[0],dB_G0])
         angle_offset_alongship = np.hstack([angle_offset_alongship[0],angle_offset_alongship])
         angle_offset_athwartship = np.hstack([angle_offset_athwartship[0],angle_offset_athwartship])
         beamwidth_alongship = np.hstack([beamwidth_alongship[0],beamwidth_alongship])
         beamwidth_athwartship = np.hstack([beamwidth_athwartship[0],beamwidth_athwartship])
-    if f_1[0] > np.max(calibration_frequencies):
+    if f1 > np.max(calibration_frequencies):
         #f_1[0] = np.max(calibration_frequencies)
         calibration_frequencies = np.hstack([calibration_frequencies,f_1[0]])
         dB_G0 = np.hstack([dB_G0,dB_G0[-1]])
@@ -269,8 +308,9 @@ def TSf(data, tracks, frequency, FFT_params = None, CTD = None):
         beamwidth_alongship = np.hstack([beamwidth_alongship,beamwidth_alongship[-1]])
         beamwidth_athwartship = np.hstack([beamwidth_athwartship,beamwidth_athwartship[-1]])
     # Initialize frequency vectors
-    n_f_points = np.int64(1 + np.round((f_1-f_0)/delta_f))[0]
-    f_m = np.linspace(f_0[0], f_1[0], n_f_points)
+    n_f_points = np.int64(1 + np.round((f1-f0)/delta_f))
+    f_m = np.linspace(f0, f1, n_f_points)
+    
     f_s_dec = 1/sample_interval
 
     # Wavelength at center frequency and f_m
@@ -293,7 +333,6 @@ def TSf(data, tracks, frequency, FFT_params = None, CTD = None):
 
     # Assemble complex pulse compressed signals
     y_pc_nu = pc_re + 1j*pc_im
-
     # Average signal over all channels (transducer sectors)
     y_pc_n = np.sum(y_pc_nu, axis=1) / y_pc_nu.shape[1]
 
@@ -305,33 +344,27 @@ def TSf(data, tracks, frequency, FFT_params = None, CTD = None):
     theta_n, phi_n = calcAngles(y_pc_halves_n, gamma_theta_f_c, gamma_phi_f_c)
 
     # TARGET STRENGTH
-    #
-    # Size of FFT- Window
-    r_t_begin = r_t - FFTbefore
-    r_t_end = r_t + FFTafter
-
+  
     # Reduced auto correlation signal
-    y_mf_auto_red_n = y_mf_auto_red_re + 1j * y_mf_auto_red_im
+    y_mf_auto_n = y_mf_auto_red_re + 1j * y_mf_auto_red_im
+    idx_peak_auto = np.argmax(np.abs(y_mf_auto_n))
+    sample_interval_meters = r_n[1]-r_n[0]
+    left_samples = np.int16(FFTbefore // sample_interval_meters)
+    right_samples = np.int16(FFTafter // sample_interval_meters)
+    idx_start_auto = max(0, idx_peak_auto - left_samples)
+    idx_stop_auto = min(len(y_mf_auto_n), idx_peak_auto + right_samples)
+    y_mf_auto_red_n = y_mf_auto_n[idx_start_auto:idx_stop_auto]
 
     # DFT of target signal, DFT of reduced auto correlation signal, and
     # normalized DFT of target signal
-    N_DFT = int(2 ** np.ceil(np.log2(n_f_points)))
+    N_DFT = 8*int(2 ** np.ceil(np.log2(n_f_points)))
     idxtmp = np.floor(f_m / f_s_dec[0] * N_DFT).astype("int")
     idx = np.mod(idxtmp, N_DFT)
     # DFT for the transmit signal
     _Y_mf_auto_red_m = np.fft.fft(y_mf_auto_red_n, n=N_DFT)
     Y_mf_auto_red_m = _Y_mf_auto_red_m[idx]
-    # Initialize return variables
-    TS_m = []
-    freqs = []
-    theta_t = []
-    phi_t = []
 
-    # r_t is taken directly from track input. No target detector is applied.
-
-    # Interpolate
-        # angle_offset, beamwidth, dB_g0
-        # Perform only in case of change in ping_idx
+    # Interpolate angle_offset, beamwidth, dB_g0
     # Interpolation only works when f_m is within the bounds of 
     # calibration_frequencies. 
     dB_G0_interp = np.interp(f_m, calibration_frequencies, dB_G0)
@@ -349,82 +382,46 @@ def TSf(data, tracks, frequency, FFT_params = None, CTD = None):
         )
     g0_m_interp = np.power(10, dB_G0_interp / 10)
 
-    FFTbefore_list = []
-    FFTafter_list = []
-    # Loop through all pings
-    for i in tqdm(range(len(track_ping_time))):
-        tolerance = np.timedelta64(1, 'ms')
-        try:
-            ping_idx =  np.where(np.abs(ping_time-track_ping_time[i])<=tolerance)[0][0]
+    tolerance = np.timedelta64(1, 'ms') # Account for different rounding of time
 
-        except:
-            print("No available ping for track no.", i)
-            theta_t.append(np.nan)
-            phi_t.append(np.nan)
-            TS_m.append(
-                np.full(len(f_m),np.nan)
-                )
-            freqs.append(f_m)
-            continue
-
-        idx_peak_p_rx = np.argmin(abs(r_n-r_t[i]))
-        theta_t.append(theta_n[ping_idx][idx_peak_p_rx]) 
-        phi_t.append(phi_n[ping_idx][idx_peak_p_rx])
-
-        # Extract pulse compressed samples "before" and "after" the peak power
-        Idx = np.where((r_n >= r_t_begin[i]) & (r_n <= r_t_end[i]))
-        y_pc_t_n  = y_pc_n[ping_idx][Idx]
-
-        # DFT of target signal, DFT of reduced auto correlation signal, and
-        # normalized DFT of target signal
-        # DFT for the target signal
-        _Y_pc_t_m = np.fft.fft(y_pc_t_n, n=N_DFT)
-        Y_pc_t_m = _Y_pc_t_m[idx]
-
-        # The Normalized DFT
-        Y_tilde_pc_t_m = Y_pc_t_m / Y_mf_auto_red_m
-
-        # Received power spectrum for a single target
-        imp = (np.abs(z_rx_e[ping_idx] + z_td_e) / np.abs(z_rx_e[ping_idx])) ** 2 / np.abs(z_td_e)
-        P_rx_e_t_m = N_u * (np.abs(Y_tilde_pc_t_m) / (2 * np.sqrt(2))) ** 2 * imp
-
-        # Target strength spectrum
-        B_theta_phi_m = (
-                0.5 * 6.0206 * (
-                    (np.abs(theta_t[i] - angle_offset_alongship_interp) /
-                     (beamwidth_alongship_interp / 2)) ** 2
-                    + (np.abs(phi_t[i] - angle_offset_athwartship_interp) /
-                       (beamwidth_athwartship_interp / 2)) ** 2
-                    - 0.18 * ((np.abs(theta_t[i] - angle_offset_alongship_interp)/
-                               (beamwidth_alongship_interp / 2)) ** 2
-                        * (np.abs(phi_t[i] - angle_offset_athwartship_interp) /
-                           (beamwidth_athwartship_interp / 2)) ** 2)
-                )
-            )
-
-        g_theta_phi_m = g0_m_interp/(np.power(10, B_theta_phi_m / 10))
-
-        # Absorption coefficient
-        alpha_m = calcAbsorption(temperature, salinity, r_t[i], sound_speed[ping_idx], f_m)
-
-        TS_m.append(
-                10 * np.log10(P_rx_e_t_m)
-                + 40 * np.log10(r_t[i])
-                + 2 * alpha_m * r_t[i]
-                - 10
-                * np.log10(
-                    (p_tx_e[ping_idx] * lambda_m[ping_idx]**2 * g_theta_phi_m**2) / (16 * np.pi**2)
-                )
-            )
-        freqs.append(f_m)
-        FFTbefore_list.append(FFTbefore)
-        FFTafter_list.append(FFTafter)
+    # Find all valid ping indices at once
+    time_differences = np.abs(ping_time[:, None] - track_ping_time)
+    valid_pings = np.where(time_differences <= tolerance)[0]
+    #valid_tracks = np.where(time_differences <= tolerance)[1]
     
+    idx_peak_p_rx = np.round((r_t - r_n[0]) / sample_interval_meters).astype(int)
+
+    theta_t = theta_n[valid_pings,idx_peak_p_rx]
+    phi_t = phi_n[valid_pings,idx_peak_p_rx]
+    window_indices = idx_peak_p_rx[:, None] + np.arange(-left_samples, right_samples + 1)[None, :]
+    y_pc_t_n = y_pc_n[valid_pings[:,None],window_indices]
+
+    B_theta_phi_m = calculate_beam_pattern(theta_t, phi_t, 
+                                             angle_offset_alongship_interp,
+                                             angle_offset_athwartship_interp,
+                                             beamwidth_alongship_interp,
+                                             beamwidth_athwartship_interp)
+
+    g_theta_phi_m = g0_m_interp / np.power(10, B_theta_phi_m / 10)
+    imp = (np.abs(z_rx_e[valid_pings[:,None]] + z_td_e) / np.abs(z_rx_e[valid_pings[:,None]])) ** 2 / np.abs(z_td_e)
+    
+    p_tx_e = p_tx_e[valid_pings[:,None]]    
+    lambda_m = lambda_m[valid_pings]
+    
+    TS_m = process_target_strength(y_pc_t_n, r_t, 
+                                    temperature, salinity, 
+                                    sound_speed[valid_pings], f_m[:,None],
+                                    N_DFT, idx, Y_mf_auto_red_m,
+                                    imp, p_tx_e, 
+                                    lambda_m, g_theta_phi_m, N_u)        
+    
+
+
     return [
         TS_m,
-        freqs,
-        FFTbefore_list,
-        FFTafter_list,
+        f_m,
+        FFTbefore,
+        FFTafter,
         r_t,
         theta_t,
         phi_t,
@@ -478,6 +475,7 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, FFTdir):
                     for _grp in grp if not _grp == 'Environment']
         raw_pc_attr = xr.open_dataset(ncfile, engine='netcdf4')
         freqs_raw_pc = raw_pc_attr['frequency'].values
+        channels_raw_pc = raw_pc_attr['channel_id'].values
       
         # Make frequency array for all available frequencies
         freq_tot = construct_full_freqs(raw_pc_all, FFT['delta_frequency']) 
@@ -485,28 +483,32 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, FFTdir):
         # Read environmental data
         env_data = xr.open_dataset(ncfile, engine='netcdf4', group='Environment')
         
-        freqs_targets = sorted(set(targets['frequency'].values))
+        freqs_targets = set(targets['frequency'].values)
+        channels_targets = set(targets['channel_id'].values)
         if len(freqs_targets) == 0:
             print('No tracked channels in file ', trackfilename)
             continue # skip file if no targets present
         # Initialize counter for dim "i"
         n_i = 0
-        for i, freq in enumerate(freqs_targets):
-            print("Processing channel with frequency: ", freq)
-            raw_index = np.int8(np.where(freqs_raw_pc == freq))[0][0]
+        for i, channel in enumerate(channels_targets):
+            
+            condition = channels_raw_pc == channel
+            raw_index = np.int8(np.where(condition))[0][0] #ONLY READS FIRST CHANNEL WITH CURRENT FREQUENCY
             raw_pc = raw_pc_all[raw_index]
             
             # Filter targets to only include current frequency:
-            filtered_targets = targets.where(targets['frequency'] == freq, drop=True)
-            df = filtered_targets.to_dataframe().reset_index()
-            df_unique = df.drop_duplicates(keep='first')
-            if df.shape[0] != df_unique.shape[0]:
-                print(df.shape,df_unique.shape)
-                print('')
-            if len(filtered_targets) == 0:
+            filtered_targets = targets.where(targets['channel_id'] == channel, drop=True)
+            freq = int(list(set(filtered_targets['frequency'].values))[0])
+            print("Processing channel ", channel," with frequency: ", freq)
+            #df = filtered_targets.to_dataframe().reset_index()
+            #df_unique = df.drop_duplicates(keep='first')
+            #if df.shape[0] != df_unique.shape[0]:
+            #    print(df.shape,df_unique.shape)
+            #    print('')
+            if len(filtered_targets['single_target_identifier'].values) == 0:
                 print('No targets left after filtering')
                 # skip frequency if no targets present
-            
+            print("Number of targets: ", len(filtered_targets['single_target_identifier'].values))
             [
                 TSf_t,
                 f_m,
@@ -525,8 +527,8 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, FFTdir):
                     'pulse_length': (['i'], np.full(r_t.shape,raw_pc_attr['pulse_length'][raw_index].values)),
                     'ping_time': (['i'], filtered_targets['ping_time'].values),
                     'TSf': (['i', 'frequency'], TSf_tot),
-                    'FFT_before': (['i'], _FFT_before),
-                    'FFT_after': (['i'], _FFTafter),
+                    'FFT_before': (['i'], np.full(r_t.shape,_FFT_before)),
+                    'FFT_after': (['i'], np.full(r_t.shape,_FFTafter)),
                     'single_target_identifier': (['i'], np.int64(filtered_targets['single_target_identifier'].values)),
                     'single_target_range': (['i'], r_t),
                     'single_target_alongship_angle': (['i'], theta),

@@ -232,7 +232,7 @@ def track2nc(_inputdir, _outputdir, channels):
             t_borders = []
             # The frequencies are needed to convert the channel index to frequency. Is there an easier way to read them?
             transducer_frequencies = np.array(channels[channel]['transducer_frequency'], dtype=int)
-
+            channel_names = np.array(channels[channel]['channel_names'], dtype=str)
             # Extract data from korona file
             for pos, typ, length, msg in index(raw_file):
                 # If datagram type is related to tracking
@@ -254,7 +254,8 @@ def track2nc(_inputdir, _outputdir, channels):
                         'single_target_start_range': (['i'], []),
                         'single_target_stop_range': (['i'], []),
                         'single_target_range': (['i'], []),
-                        'frequency': (['i'], [])
+                        'frequency': (['i'], []),
+                        'channel_id': (['i'], []),
                     },
                     coords={"i": (['i'], [])}
                 )
@@ -297,6 +298,9 @@ def track2nc(_inputdir, _outputdir, channels):
             df_tracking_border = df_tracking_border.with_columns(
                 pl.Series(name='frequency',
                           values=transducer_frequencies[frequency_index - 1]))
+            df_tracking_border = df_tracking_border.with_columns(
+                pl.Series(name='channel_id',
+                          values=channel_names[frequency_index - 1]))
             # Add the number of targets in each ping
             # NB not in use, this would require ping_time as a dimension in the xarray dataset
             # df_tracking_border = df_tracking_border.with_columns(pl.len().over('ping_time').alias('single_target_count'))
@@ -316,7 +320,9 @@ def track2nc(_inputdir, _outputdir, channels):
                     'single_target_range': (['i'], df_tracking_border[
                         'single_target_range'].to_numpy()),
                     'frequency': (['i'], df_tracking_border[
-                        'frequency'].to_numpy())
+                        'frequency'].to_numpy()),
+                    'channel_id': (['i'], df_tracking_border[
+                        'channel_id'])
                 },
                 coords={"i": (['i'], np.arange(len(df_tracking_border)))}
             )
@@ -326,14 +332,15 @@ def track2nc(_inputdir, _outputdir, channels):
             ds.to_netcdf(os.path.join(outputdir, save_path))
             
         # Remove temporary korona files
-        kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.raw*')]
-        kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.bot*')]
-        kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.idx*')]
+        #kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.raw*')]
+        #kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.bot*')]
+        #kfiles = [os.remove(_f) for _f in glob.glob(outputdir+'/*korona.idx*')]
 
 
 def track2png(pcdir, koronadir, channels):
     for channel in channels:
-
+        if channel== '1':
+            continue
         # List NC files
         ncdir = os.path.join(pcdir, 'pc_' + channel)
         ncfiles = glob.glob(os.path.join(ncdir, '*.nc'))
@@ -478,7 +485,7 @@ for _dataset in df['dataset']:
 
         # Plot tracks
         print('*****************track2png**************************')
-        track2png(griddeddir, koronadir, channels)
+        #track2png(griddeddir, koronadir, channels)
 
         print(' ')
         print(' DONE ')
