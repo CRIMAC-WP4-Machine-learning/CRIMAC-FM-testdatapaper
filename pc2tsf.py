@@ -238,31 +238,29 @@ def TSf(
     To reduce function call overhead, the structure uses no sub-functions.
     '''
 
-    # Extract data from dataframe
-    ping_time = data['ping_time'].values
-    z_rx_e = data['transceiver_impedance'].values
-    f_0 = data['transmit_frequency_start'].values
-    f_1 = data['transmit_frequency_stop'].values
-    sample_interval = data['sample_interval'].values
-    r_n = data['range'].values
-    sound_speed = data['sound_speed'].values
-    angle_sensitivity_alongship = data['angle_sensitivity_alongship'].values
-    angle_sensitivity_athwartship = data['angle_sensitivity_athwartship'].values
-    angle_offset_alongship = data['calibration_angle_offset_alongship'].values
-    angle_offset_athwartship = data['calibration_angle_offset_athwartship'].values
-    beamwidth_alongship = data['calibration_beamwidth_alongship'].values
-    beamwidth_athwartship = data['calibration_beamwidth_athwartship'].values
-    #equivalent_beam_angle = data['calibration_equivalent_beam_angle'].values  # Remove?
-    calibration_frequencies = data['calibration_frequency'].values
-    dB_G0 = data['calibration_gain'].values
-    pc_re = data['pulse_compressed_re'].values
-    pc_im = data['pulse_compressed_im'].values
-    N_u = data['pulse_compressed_re'].shape[1]
-    y_mf_auto_red_re = data['y_mf_auto_red_re'].values
-    y_mf_auto_red_im = data['y_mf_auto_red_im'].values
-    theta_n = data['angle_alongship'].values
-    phi_n = data['angle_athwartship'].values
-    p_tx_e = data['transmit_power'].values
+    # Define variables to extract
+    variables = [
+        'ping_time', 'transceiver_impedance', 'transmit_frequency_start', 
+        'transmit_frequency_stop', 'sample_interval', 'range', 'sound_speed',
+        'angle_sensitivity_alongship', 'angle_sensitivity_athwartship',
+        'calibration_angle_offset_alongship', 'calibration_angle_offset_athwartship',
+        'calibration_beamwidth_alongship', 'calibration_beamwidth_athwartship',
+        'calibration_frequency', 'calibration_gain', 'pulse_compressed_re',
+        'pulse_compressed_im', 'y_mf_auto_red_re', 'y_mf_auto_red_im',
+        'angle_alongship', 'angle_athwartship', 'transmit_power'
+    ]
+
+    # Extract all values at once
+    (ping_time, z_rx_e, f_0, f_1, sample_interval, r_n, sound_speed,
+     angle_sensitivity_alongship, angle_sensitivity_athwartship,
+     angle_offset_alongship, angle_offset_athwartship,
+     beamwidth_alongship, beamwidth_athwartship,
+     calibration_frequencies, dB_G0, pc_re, pc_im,
+     y_mf_auto_red_re, y_mf_auto_red_im,
+     theta_n, phi_n, p_tx_e) = [data[var].values for var in variables]
+
+    # Additional calculations
+    N_u = pc_re.shape[1]
     track_ping_time = tracks['ping_time'].values
     r_t = tracks['single_target_range'].values
     z_td_e = 75
@@ -369,17 +367,13 @@ def TSf(
     # calibration_frequencies. 
     dB_G0_interp = np.interp(f_m, calibration_frequencies, dB_G0)
     angle_offset_alongship_interp = np.interp(
-            f_m, calibration_frequencies, angle_offset_alongship
-    )
+            f_m, calibration_frequencies, angle_offset_alongship)
     angle_offset_athwartship_interp = np.interp(
-            f_m, calibration_frequencies, angle_offset_athwartship
-    )
+            f_m, calibration_frequencies, angle_offset_athwartship)
     beamwidth_alongship_interp = np.interp(
-            f_m, calibration_frequencies, beamwidth_alongship
-        )
+            f_m, calibration_frequencies, beamwidth_alongship)
     beamwidth_athwartship_interp = np.interp(
-            f_m, calibration_frequencies, beamwidth_athwartship
-        )
+            f_m, calibration_frequencies, beamwidth_athwartship)
     g0_m_interp = np.power(10, dB_G0_interp / 10)
 
     tolerance = np.timedelta64(1, 'ms') # Account for different rounding of time
@@ -387,7 +381,7 @@ def TSf(
     # Find all valid ping indices at once
     time_differences = np.abs(ping_time[:, None] - track_ping_time)
     valid_pings = np.where(time_differences <= tolerance)[0]
-    #valid_tracks = np.where(time_differences <= tolerance)[1]
+    
     
     idx_peak_p_rx = np.round((r_t - r_n[0]) / sample_interval_meters).astype(int)
 
@@ -417,15 +411,7 @@ def TSf(
     
 
 
-    return [
-        TS_m,
-        f_m,
-        FFTbefore,
-        FFTafter,
-        r_t,
-        theta_t,
-        phi_t,
-        ]
+    return [TS_m, f_m, FFTbefore, FFTafter, r_t, theta_t, phi_t]
 
 
 def pc2tsf(trackdir: str, ncdir: str, outputdir: str, FFTdir):
@@ -500,11 +486,7 @@ def pc2tsf(trackdir: str, ncdir: str, outputdir: str, FFTdir):
             filtered_targets = targets.where(targets['channel_id'] == channel, drop=True)
             freq = int(list(set(filtered_targets['frequency'].values))[0])
             print("Processing channel ", channel," with frequency: ", freq)
-            #df = filtered_targets.to_dataframe().reset_index()
-            #df_unique = df.drop_duplicates(keep='first')
-            #if df.shape[0] != df_unique.shape[0]:
-            #    print(df.shape,df_unique.shape)
-            #    print('')
+            
             if len(filtered_targets['single_target_identifier'].values) == 0:
                 print('No targets left after filtering')
                 # skip frequency if no targets present
