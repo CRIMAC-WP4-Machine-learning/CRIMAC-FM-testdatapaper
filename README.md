@@ -48,15 +48,18 @@ The `check_data.py` parses key diretories and count files by file extension per 
 
 
 ## Scripts for test data processing
+Overview of the data processing scripts.
+
+![processingPipeline](https://github.com/user-attachments/assets/bd5b3977-d6b6-4652-a681-1ec302153077)
 
 The scripts and function use the following naming conventions:
 
 - raw: Simrad RAW format
 - pc: pulse compressed data, NetCDF format
-- tracks: individual object tracks, NetCDF format
-- annotations: same?
-- svf: echo per frequency by volume, i.e. S_v(f) values
-- tsf: echo per frequency for individual targets, TS(f)
+- tracks: individual object tracks, csv format
+- annotations: same as track format
+- svf: echo per frequency by volume, i.e. S_v(f) values, NetCDF format
+- tsf: echo per frequency for individual targets, TS(f), NetCDF format
 
 ### process_pipeline_main.py - Run the conversion of test data from raw to pulse compressed
 
