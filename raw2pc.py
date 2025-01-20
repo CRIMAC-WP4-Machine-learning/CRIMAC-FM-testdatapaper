@@ -45,7 +45,7 @@ def raw2pc(inputdir, outputdir, channels, debug=False):
                                  ChannelGroupOutputType="PULSE_COMPRESSION"))
 
         if debug: ksi.write()
-        ksi.run(src=inputdir, dst=outputdir, debug=debug)
+        ksi.run(src=inputdir, dst=outputdir)
 
         # Remove temporary korona files
         for f in glob.glob(outputdir + '/*korona.*'): os.remove(f)
