@@ -72,8 +72,11 @@ for result in tqdm(results):
     print('Done')
 
     # Unzip file
-    with zipfile.ZipFile(zip_file, 'r') as zip_ref:
-        zip_ref.extractall(zip_file_path)
+    if not os.system(f'unzip {zip_file}'):
+        pass
+    else:
+        with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+            zip_ref.extractall(zip_file_path)
 
     # Remove zip file
     os.remove(zip_file)
