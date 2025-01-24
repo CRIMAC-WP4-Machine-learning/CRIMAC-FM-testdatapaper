@@ -56,15 +56,20 @@ for result in tqdm(results):
     # Create data directory
     os.makedirs(zip_file_path, exist_ok=True)
 
-    # Send a GET request to the URL
-    response = requests.get(result[2])
+    print('Now retrieving: ', result[2])
+    if not os.system(f'wget {result[2]} -O {zip_file}'):
+        pass
+    else:
+        # Send a GET request to the URL
+        response = requests.get(result[2])
 
-    # Raise an exception if the request was unsuccessful
-    response.raise_for_status()
+        # Raise an exception if the request was unsuccessful
+        response.raise_for_status()
 
-    # Write the content of the file to the local filesystem
-    with open(zip_file, 'wb') as file:
-        file.write(response.content)
+        # Write the content of the file to the local filesystem
+        with open(zip_file, 'wb') as file:
+            file.write(response.content)
+    print('Done')
 
     # Unzip file
     with zipfile.ZipFile(zip_file, 'r') as zip_ref:
