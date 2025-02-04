@@ -362,7 +362,7 @@ def calcPowerFreqSv(Y_tilde_pc_v_m_n, N_u, z_rx_e, z_td_e):
 
     # Loop over list of FFTs along range
     for Y_tilde_pc_v_m in Y_tilde_pc_v_m_n:
-        P_rx_e_v_m = N_u * (np.abs(Y_tilde_pc_v_m) / (2 * np.sqrt(2))) ** 2 * Z
+        P_rx_e_v_m = N_u * (np.abs(Y_tilde_pc_v_m) / (2 * np.sqrt(2))) ** 2 * Z.values
         # Append power to list
         P_rx_e_v_m_n.append(P_rx_e_v_m)
 
@@ -539,7 +539,7 @@ def calcSvf(data,environment):
     plt.savefig("Figure3b.png", dpi=300)
     print('Done')
 
-    step = 1  # Step in samples for sliding window
+    step = 128  # Step in samples for sliding window
     # TODO: Currently step=1. Consider changing overlap.
     Y_pc_v_m_n, Y_mf_auto_m, Y_tilde_pc_v_m_n, svf_range = calcDFTforSv(
         y_pc_s_n, w_tilde_i, y_mf_auto_n, N_w, n_f_points, f_m, f_s_dec, r_c_n, step
@@ -552,7 +552,7 @@ def calcSvf(data,environment):
     # # Initialize list of Svf by range
     Sv_m_n = np.empty([len(svf_range), len(alpha_m)], dtype=float)
 
-    G = (p_tx_e * lambda_m**2 * c * t_w * psi_m * g_0_m**2) / (32 * np.pi**2)
+    G = (p_tx_e.values * lambda_m**2 * c * t_w * psi_m * g_0_m**2) / (32 * np.pi**2)
     n = 0
 
     # # Loop over list of power values along range
