@@ -4,6 +4,9 @@
 # See pc2svf.py for pc to sv(f) conversion, NB work in progress
 # Refer to Andersen et al., 2024 for details on the calculations
 #
+# Code from Andersen et al., 2024 / https://github.com/CRIMAC-WP4-Machine-learning/CRIMAC-Raw-To-Svf-TSf
+# is re-used in this code.
+#
 
 import pandas as pd
 import os
