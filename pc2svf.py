@@ -7,7 +7,6 @@
 # n - sample index in time domain
 # m - sample index in frequency domain
 
-import pandas as pd
 import os
 import xarray as xr
 import matplotlib.pyplot as plt
@@ -368,7 +367,7 @@ def calcPowerFreqSv(Y_tilde_pc_v_m_n, N_u, z_rx_e, z_td_e):
 
     return P_rx_e_v_m_n
 
-def calcSvf(data,environment):
+def calcSvf(data,environment,transducer_draft,latitude,frequency,pulse_duration):
     """
     Calculate Sv as a function of frequency.
     
@@ -415,9 +414,10 @@ def calcSvf(data,environment):
     #y_pc_s_n, y_pc_n, r_c_n = calcSvf(_data,environment)
     #### Extract data for testing ####
 
-    # MISSING IN NC ###########################################################
-    tau=2.048e-3 # nominal pulse duration [s]
-    # MISSING IN NC ###########################################################
+    # MISSING IN NC? ###########################################################
+    # tau=2.048e-3 # nominal pulse duration [s]
+    tau=pulse_duration
+    # MISSING IN NC? ###########################################################
     
     #c=_data.sound_speed # Sound speed [m/s]
     #c = _data.sound_speed.values[0]
@@ -573,21 +573,30 @@ def calcSvf(data,environment):
 #### Read data for testing from CRIMAC testdata ####
 # Pick a file for testing, NB remember to modify values that are not yet read fron the NC file
 crimacscratch = os.path.join('/mnt/d/CRIMAC/crimac-scratch/', 'CRIMAC-FM-testdata')
+# datafile = os.path.join(crimacscratch, '2022', 'T2022001', 'ACOUSTIC',
+                        # 'GRIDDED', 'pc_1', '2022611-D20220430-T140540.nc')
 datafile = os.path.join(crimacscratch, '2022', 'T2022001', 'ACOUSTIC',
-                        'GRIDDED', 'pc_1', '2022611-D20220430-T140540.nc')
+                        'GRIDDED', 'pc_1_lsss_3', 'netcdf', '2022611-D20220430-T140540.nc')   
 nc_dataset = Dataset(datafile, "r")
 grp = list(nc_dataset.groups.keys())
 data = [xr.open_mfdataset(datafile, engine='netcdf4', group=_grp)
         for _grp in grp if not _grp == 'Environment']
 environment = xr.open_mfdataset(datafile, engine='netcdf4', group='Environment')
 
+# Extract additional data not in a group
+transducer_draft = nc_dataset.variables['transducer_draft'][:].data
+latitude = nc_dataset.variables['latitude'][:].data
+frequency = nc_dataset.variables['frequency'][:].data
+pulse_duration = nc_dataset.variables['pulse_length'][:].data
+
 #### Perform the calculations ######################################################################
 # Sv(f), f, range
 
-Sv_m_n, f_m, svf_range = calcSvf(data,environment)
+Sv_m_n, f_m, svf_range = calcSvf(data,environment,transducer_draft[0],latitude[0],frequency,pulse_duration)
 print('Done')
 
 #### Perform the calculations ######################################################################
+
 
 #### Plotting procedures ###########################################################################
 # Plot the Sv echogram as a function of frequency (f_m) and range (svf_range) for the ping used in calculations
