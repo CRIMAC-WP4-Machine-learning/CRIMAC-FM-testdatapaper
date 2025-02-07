@@ -1,7 +1,14 @@
 #
-# This script reads nc and computes Sv(f) from pulse compressed data
+# This script reads nc and computes Sv(f) from pulse compressed data exported using LSSS/Korona
+# to NetCDF files.
+#
+# 15.01.2025: For now only one channel and timestamp/ping is used.
 # NB: not all values are read from the nc file as they are not implemented yet
-# , some are hardcoded for now (change other raw files are used)
+# , some are hardcoded for now (change other raw files are used).
+#
+# 07.02.2025: All values are now included. However, some are hardcoded as that is how it's done in LSSS as well.
+# LSSS 3.1.0 alpha 20250207 or newer is needed to export NetCDFs with nominal equivalent beam angle required for Sv(f).
+#
 # Refer to Andersen et al., 2024 for details on the calculations
 #
 # n - sample index in time domain
@@ -12,40 +19,6 @@ import xarray as xr
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 import numpy as np
-
-def calcRange(sampleInterval, sampleCount, c, offset):
-    """
-    Calculate range from sample interval, sample count, sound speed and offset.
-    
-    Parameters
-    ----------
-    sampleInterval : float
-        Sample interval [s]
-    sampleCount : int
-        Sample count [1]
-    c : float
-        Sound speed [m/s]
-    offset : int
-        Offset between the transducer and the first sample [1]
-    
-    Returns
-    -------
-    r : np.array
-        Range [m]
-    dr : float
-        Range resolution [m]
-    """
-    
-    # Calculate range resolution
-    dr = sampleInterval * c * 0.5
-    
-    # Calculate range
-    r = np.array([(offset + i) * dr for i in range(0, sampleCount)])
-    
-    # Avoid problems with log10 for r=0
-    r[r == 0] = 1e-20
-    
-    return r, dr
 
 def calcAbsorption(t, s, d, ph, c, f):
     """
@@ -367,7 +340,7 @@ def calcPowerFreqSv(Y_tilde_pc_v_m_n, N_u, z_rx_e, z_td_e):
 
     return P_rx_e_v_m_n
 
-def calcSvf(data,environment,transducer_draft,latitude,frequency,pulse_duration):
+def calcSvf(data,environment,transducer_draft,latitude,frequency,pulse_duration,psi_nom_f):
     """
     Calculate Sv as a function of frequency.
     
@@ -398,48 +371,48 @@ def calcSvf(data,environment,transducer_draft,latitude,frequency,pulse_duration)
         Sv(f) [dB re 1 m^-1]
     """
     
-    #### Extract data for testing (one frequency band, one ping) ####
+    #### Extract data for testing (one frequency band, one ping) ########################
     # Pick a cannel
-    _data = data[1] # 1=120 kHz
+    channel = 2
+    _data = data[channel] # 2=120 kHz
     # # Extract data from dat for one specific timestamp
     specific_timestamp = '2022-04-30T14:08:37.786000000'  # Replace with your specific timestamp
     data_at_timestamp = _data.sel(ping_time=specific_timestamp)
     # Find the index where _data has a timestamp equal to specific_timestamp
     index_at_timestamp = _data.ping_time.to_index().get_loc(specific_timestamp)
-    # Limit the data in data_at_timestamp to the range from 0 to 11629
+    # Limit the data in data_at_timestamp to the range from 0 to 11629 (as default was 400m in raw2pc.py)
     # Do this since the testdata was run with raw2pc which has range 400 m for all files...
-    data_at_timestamp = data_at_timestamp.isel(range=slice(0, 11630))
+    #data_at_timestamp = data_at_timestamp.isel(range=slice(0, 11630))
     print(f"Index of specific timestamp: {index_at_timestamp}")
     # dat = Sv_n(_data)
     #y_pc_s_n, y_pc_n, r_c_n = calcSvf(_data,environment)
-    #### Extract data for testing ####
+    #### Extract data for testing #######################################################
 
-    # MISSING IN NC? ###########################################################
     # tau=2.048e-3 # nominal pulse duration [s]
-    tau=pulse_duration
-    # MISSING IN NC? ###########################################################
+    # Nominal pulse duration [s]
+    tau=pulse_duration[channel]
     
     #c=_data.sound_speed # Sound speed [m/s]
     #c = _data.sound_speed.values[0]
+    # Sound speed [m/s]
     c = data_at_timestamp.sound_speed.values
 
-    sampleCount=len(data_at_timestamp.pulse_compressed_re[0].values)
-    # MISSING IN NC ###########################################################
-    offset=0
-    # MISSING IN NC ###########################################################
-    
-    # MISSING IN NC ###########################################################
-    # But we can calculate it from the sample interval and sound speed
-    r_c_n, dr = calcRange(data_at_timestamp.sample_interval.values, sampleCount, c, offset)
-    # MISSING IN NC ###########################################################
+    # Used for calculating range (range is in the NCs...)  
+    # sampleCount=len(data_at_timestamp.pulse_compressed_re[0].values)
+    # offset=0
+    # r = np.array([(offset + i) * dr for i in range(0, sampleCount)])
+    # r_c_n, dr = calcRange(data_at_timestamp.sample_interval.values, sampleCount, c, offset)
+    dr = data_at_timestamp.range[2]-data_at_timestamp.range[1]
+    r_c_n = data_at_timestamp.range
+
+    # Calculate sampling frequency after decimation stages [Hz]
+    f_s_dec = np.round(1/data_at_timestamp.sample_interval.values)
 
     # MISSING IN NC ###########################################################
-    f_s_dec = 93750 # Temporary value, changes with file and channel
-    # MISSING IN NC ###########################################################
-
-    # MISSING IN NC ###########################################################
-    z_td_e = 75 # Temporary value, changes with file and channel
-    # MISSING IN NC ###########################################################
+    # LSSS also has this value (transducer impedence) hardcoded.
+    # It's possible to change that but it requires a bit of work in LSSS and should not be
+    # a CRIMAC task. We use the same approach as LSSS and hardcode the value for now.
+    z_td_e = 75 
 
     # Transmitted electric power [W]
     # p_tx_e = data_at_timestamp.transmit_power.values
@@ -459,7 +432,10 @@ def calcSvf(data,environment,transducer_draft,latitude,frequency,pulse_duration)
 
     # Pulse compressed signal adjusted for spherical loss
     # Or is it already compesated in the NCs?
+    # This is already done in LSSS and not necassary to do here.
+    # Correction, seems it's not as the values becomes off without.
     y_pc_s_n = calcPulseCompSphericalSpread(y_pc_n, r_c_n)
+    # y_pc_s_n=y_pc_n
 
     # Hann window
     w_tilde_i, N_w, t_w, t_w_n = defHannWindow(c, tau, dr, f_s_dec)
@@ -472,65 +448,52 @@ def calcSvf(data,environment,transducer_draft,latitude,frequency,pulse_duration)
     plt.xlabel("n")
     plt.ylabel("$y_{pc}(n)$")
 
-    #d = environment.depth # Transducer depth? [m] - is this what we should use? It seems to be the wrong value (salinity value)
-    # MISSING IN NC ###########################################################
-    d = 5.8 # Transducer depth [m] - is this what we should use?
-    # MISSING IN NC ###########################################################
+    # Transducer depth
+    d = transducer_draft[0]
 
+    # Calibration frequencies
     f = data_at_timestamp.calibration_frequency.values # Frequencies [Hz]
+    # Temperature values at calibration
     t = environment.temperature.values # Temperature [°C]
+    # Salinity values at calibration
     s = environment.salinity.values # Salinity [PPT]
 
-    # ph = environment.ph.values # Ph / accidity not in NC
-    # MISSING IN NC ###########################################################
-    pH = 8
-    # MISSING IN NC ###########################################################
+    # MISSING IN NC   ###########################################################
+    # Accidity is found in raw files, however LSSS does not read or use that value.
+    # LSSS also has this value (transducer impedence) hardcoded (ph = 7 for low salinity (<10 psu) and ph=8 otherwise).
+    # It's possible to change that but it requires a bit of work in LSSS and should not be
+    # a CRIMAC task. We use the same approach as LSSS for now, with: 
+    pH = 7 if s < 10 else 8
 
-    # MISSING IN NC ###########################################################
-    # Centre frequency of the broadband pulse, f_c (preferable to have that in the nc file, requested)
+    # Centre frequency of the broadband pulse, f_c
     f_c = 1/2*(data_at_timestamp.transmit_frequency_start + data_at_timestamp.transmit_frequency_stop)
-    # MISSING IN NC ###########################################################
-    
-    # Absorption coefficient at center frequency and f_m
 
     n_f_points=1000
     # OR USE f at cal frequencies
     f_m = np.linspace(data_at_timestamp.transmit_frequency_start, data_at_timestamp.transmit_frequency_stop, n_f_points)
 
-    # MISSING IN NC ###########################################################
-    # Should we do these or have them in NC?
+    # Calculate attenuation (not in NC files, more efficient to calculate here)
     alpha_f_c = calcAbsorption(t, s, d, pH, c, f_c)
     alpha_m = calcAbsorption(t, s, d, pH, c, f_m)
-    # MISSING IN NC ###########################################################
 
     lambda_m = c/f_m
 
-    psi_f_c = 10**(-20.7/10) # Temporary value, changes with file and channel
+    # PSI [sr]
+    psi_f_c = 10**(psi_nom_f[channel]/10) 
     psi_m = psi_f_c * (f_c.values / f_m) ** 2
-
+    # psi at cal frequencies is in the NC files but all NaNs
+    
     # Transducer gain at centre frequency [1] (float)
     g_0_f = data_at_timestamp.calibration_gain
     # Caulate transducer gain for all frequencies
     G_0_m = np.interp(f_m, data_at_timestamp.calibration_frequency.values, g_0_f.values)
     g_0_m = 10**(G_0_m/10)
 
-    # Korona outputs _red? Looks shorter / reduced?
-    # MISSING IN NC? ###########################################################
-    # y_mf_auto_n = _data.y_mf_auto_red_im * 1j + _data.y_mf_auto_red_re
-    # Temporarily using the following code to read y_mf_auto_n
-    import xarray as xr
-    # Path to the NetCDF file
-    file_path = "/mnt/c/Users/a32685/Documents/PythonScripts/CRIMAC-WP4-Machine-learning/CRIMAC-Raw-To-Svf-TSf/Data/y_mf_auto_n.nc"
-    # Read the NetCDF file
-    datasetExt = xr.open_dataset(file_path)
-    # Retrieve the real and imaginary parts
-    data_array_real = datasetExt['real']
-    data_array_imag = datasetExt['imag']
-    # Combine them back into a complex array
-    # Combine them back into a complex array and convert to complex64
-    #y_mf_auto_n = (data_array_real.values + 1j * data_array_imag.values).astype(np.complex64)
-    y_mf_auto_n = (data_array_real + 1j * data_array_imag).astype(np.complex64)
-    plt.figure()
+    # LSSS/Korona outputs _red which is shorter / reduced compared with the raw files
+    # This is what's used in LSSS, and it does not make a difference according to LSSS as the truncated values are 
+    # small. We then use the same approach here.
+    y_mf_auto_n = _data.y_mf_auto_red_im * 1j + _data.y_mf_auto_red_re
+
     plt.plot(np.abs(y_mf_auto_n.values))
     # plt.title('The autocorrelation function of the matched filter.')
     plt.xlabel("n")
@@ -538,6 +501,7 @@ def calcSvf(data,environment,transducer_draft,latitude,frequency,pulse_duration)
     plt.savefig("Fig_ACF.png", dpi=300)
     plt.savefig("Figure3b.png", dpi=300)
     print('Done')
+    plt.figure()
 
     step = 128  # Step in samples for sliding window
     # TODO: Currently step=1. Consider changing overlap.
@@ -588,21 +552,19 @@ transducer_draft = nc_dataset.variables['transducer_draft'][:].data
 latitude = nc_dataset.variables['latitude'][:].data
 frequency = nc_dataset.variables['frequency'][:].data
 pulse_duration = nc_dataset.variables['pulse_length'][:].data
+psi_nom_f = nc_dataset.variables['equivalent_beam_angle'][:].data
 
 #### Perform the calculations ######################################################################
 # Sv(f), f, range
-
-Sv_m_n, f_m, svf_range = calcSvf(data,environment,transducer_draft[0],latitude[0],frequency,pulse_duration)
+Sv_m_n, f_m, svf_range = calcSvf(data,environment,transducer_draft[0],latitude[0],frequency,pulse_duration,psi_nom_f)
 print('Done')
-
 #### Perform the calculations ######################################################################
-
 
 #### Plotting procedures ###########################################################################
 # Plot the Sv echogram as a function of frequency (f_m) and range (svf_range) for the ping used in calculations
 plt.figure()
 _f = f_m / 1000
-d = 5.8     # Transducer depth (m) - missing in NC
+d = transducer_draft[2,0]     # Transducer depth (m)
 plt.imshow(Sv_m_n, extent=[_f[0], _f[-1], svf_range[-1]+d, svf_range[0]+d], origin='upper',
             interpolation=None, vmin=-82, vmax=-30)
 cb = plt.colorbar()
@@ -627,6 +589,29 @@ plt.xlabel("Frequency (kHz)")
 plt.ylabel("Sv (dB re 1 m$^{-1}$)")
 plt.grid()
 plt.savefig("Fig_Sv_avg.png", dpi=300)
+
+# Read and plot the verification data from LSSS
+import json
+with open('T2022001_LSSS_test_ping_Svf.json') as json_file:
+    jsondata = json.load(json_file)
+plt.figure()
+plt.plot(jsondata['datasets'][0]['frequency'], jsondata['datasets'][0]['sv'])
+plt.title('Sv(f) from LSSS test ping')
+plt.xlabel("Frequency (kHz)")
+plt.ylabel("Sv (dB re 1 m$^{-1}$)")
+plt.grid()
+plt.savefig("Fig_Sv_LSSS_test_ping.png", dpi=300)
+
+# Plot the Sv(f) for a given range interval and the verification data from LSSS in the same figure
+plt.figure()
+plt.plot(f_m / 1000, Sv, label='CRIMAC')
+plt.plot(jsondata['datasets'][0]['frequency'], jsondata['datasets'][0]['sv'], label='LSSS')
+plt.title('Sv(f) averaged over depths')
+plt.xlabel("Frequency (kHz)")
+plt.ylabel("Sv (dB re 1 m$^{-1}$)")
+plt.grid()
+plt.legend()
+plt.savefig("Fig_Sv_avg_and_LSSS_test_ping.png", dpi=300)
 
 SvfOut = np.concatenate((f_m[np.newaxis], Sv_m_n), axis=0)
 np.save("Svf.npy", SvfOut)
