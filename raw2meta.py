@@ -1,7 +1,7 @@
 # this script convert the raw data to pulse compressed data
 import os
 import ektools as E
-
+import sys
 
 def raw2meta(inputdir):
     """
@@ -73,3 +73,10 @@ def raw2meta(inputdir):
         comments = None
         '''
     return channels, con_par, ind_par
+
+if __name__ == '__main__':
+    inputdir = sys.argv[1]
+    print(f'Processing: {inputdir}')
+    chs, con_par, ind_par = raw2meta(inputdir)
+    print('*** Channels ***')
+    print(chs)
