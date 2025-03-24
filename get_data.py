@@ -72,7 +72,7 @@ for result in tqdm(results):
     print('Done')
 
     # Unzip file
-    if not os.system(f'unzip {zip_file}'):
+    if not os.system(f'unzip -o "{zip_file}" -d "{zip_file_path}"'):
         pass
     else:
         with zipfile.ZipFile(zip_file, 'r') as zip_ref:
