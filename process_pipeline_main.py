@@ -20,7 +20,9 @@ lsss_version = re.search(r'[0-9]\.[0-9]+', lsss).group()
 if lsss_version[0] < '2' or (lsss_version[0] == '2' and lsss_version[2:] < '18'):
     print(f'Warning: your LSSS version appears to be {lsss_version}, but should be at least 2.18')
 
-df = pd.read_csv(os.path.join(crimac, 'CRIMAC-FM-testdata', 'testdata.csv'))
+df_1 = pd.read_csv(os.path.join(crimac, 'CRIMAC-FM-testdata', 'testdata.csv'))
+df_2 = pd.read_csv('testdata_info.csv')
+df = pd.merge(df_1, df_2, on='dataset', how='inner')
 
 # DF to store data for overview
 dataoverview = pd.DataFrame()
@@ -65,7 +67,10 @@ for _dataset in df['dataset']:
         print(ind)
         print(' ')
         print('*****************raw2pc****************************')
-        raw2pc(inputdir, outputdir, channels)
+        try:
+           raw2pc(inputdir, outputdir, channels)
+        except:
+            print('****FAILED****')
         print(' ')
         print('*****************pc2png****************************')
         pc2png(outputdir, channels)
