@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import sys
 from raw2meta import raw2meta
 import yaml
+import matplotlib
+matplotlib.use('Agg')
 
 DEBUG = False
 
