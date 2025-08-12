@@ -5,6 +5,8 @@ import zipfile
 from tqdm import tqdm
 import csv
 
+# This script downloads the EK80 FM testdata from nmdc.no
+
 # Get metadata
 url = 'http://metadata.nmdc.no/metadata-api/landingpage/f0bdafac077ee736926b57c422221f27'
 response = requests.get(url)

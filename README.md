@@ -1,6 +1,6 @@
 # CRIMAC-FM-testdatapaper
 
-This repository contains code to download, process and visluaize the IMR test data sets using a combination of Korona and python libraries.
+This repository contains code to download, process and visualize the IMR test data sets using a combination of Korona and python libraries.
 
 ## Preparations
 
@@ -8,27 +8,25 @@ This repository contains code to download, process and visluaize the IMR test da
 
 It is recommended to use git for obtaining the latest updates for the code.
 
-You will need a working installation of Korona and python. The code has been tested on Python 3.8.
-
-The required python libraries for python 3.8 are listed in the [requirements.txt](requirements.txt) file. To install the packages you can run `pip install -r requirements.txt` from the terminal.
-```diff
--Add pandas version to requirements? pandas.util is depreciated
-```
+You will need a working installation of Korona and python. The code has been tested on Python 3.10.
 
 You need to install LSSS/Korona, follow the instructions here: [link](https://github.com/CRIMAC-WP4-Machine-learning/CRIMAC-KoronaScript/blob/master/README.md#install-lssskorona)
 
-You also need the OpenGL libraries for running the tracking like so: `sudo apt install libgl1-mesa-glx`
+You need the OpenGL libraries for running the tracking like so: `sudo apt install libgl1-mesa-glx`
 
-It is recommended to use python environments. You can generate an environment by `python3 -m venv CRIMAC_testdata`, where `CRIMAC_testdata` is the name of the environment. Note that the environment will be installed in the current directory. It is recommented to create a separate directory to organize different environments, e.g. by `mkdir pyvenv` and enter the directory by `cd pyenv` before creating it. 
+It is recommended to use python environments. You can generate an environment by `python3.10 -m venv CRIMAC-FM-testdatapaper`, where `CRIMAC-FM-testdatapaper` is the name of the environment. Note that the environment will be installed in the current directory. It is recommented to create a separate directory to organize different environments, e.g. by `mkdir pyvenv` and enter the directory by `cd pyenv` before creating it. 
 
-After generating the environment you need to activate it by typing `source ./CRIMAC_testdata/bin/activate`. 
+After generating the environment you need to activate it by typing `source ./CRIMAC-FM-testdatapaper/bin/activate`. 
+
+The required python libraries for python 3.10 are listed in the [requirements-3.10.txt](requirements-3.10.txt) file. To install the packages, go back to the repository, e.g. `cd ~/repos/CRIMAC-FM-testdatapaper` and run `pip install -r requirements-3.10.txt` from the terminal after activating your environment.
+
 
 ### Environmental variables
 
 You need to set two environmental variables:
 
-export CRIMACSCRATCH="/mnt/c/DATAscratch/crimac-scratch"
-export LSSS=~/lsss/lsss-2.17.0-alpha
+`export CRIMACSCRATCH="/crimac-scratch"`
+`export LSSS=~/lsss/lsss-3.0.0`
 
 where the $CRIMACSCRATCH variable points to the root location of your local data storage and the $LSSS variable points to the location of the installed LSSS installation.
 
@@ -37,14 +35,9 @@ where the $CRIMACSCRATCH variable points to the root location of your local data
 
 The file `DataSets.csv` contain the list of test data sets.
 
-To obtain the test data you need to run `python3 get_data_S3.py`. The data will be downloaded from the IMR S3 server and placed under `${CRIMACSCRATCH}/CRIMAC-FM-testdata`. Each individual test data set will be placed under `/{year}/{testdataset}`.
-```diff
--get_data_S3.py isn't a part of the repository any more, use get_data.py?
-```
+To obtain the test data you need to run `python3 get_data.py`. The data will be downloaded from the Norwegian Marine Data Centre and placed under `${CRIMACSCRATCH}/CRIMAC-FM-testdata`. Each individual test data set will be placed under `/{year}/{testdataset}`.
 
-Note that the `get_data.py` moves the data from the backed up crimac storage to the S3 bucket, and must be run on one of IMR servers.
-
-The `check_data.py` parses key diretories and count files by file extension per standard directory.
+The `check_data.py` parses the diretories and count files by file extension per standard directory.
 
 
 ## Scripts for test data processing
