@@ -25,8 +25,10 @@ The required python libraries for python 3.10 are listed in the [requirements-3.
 
 You need to set two environmental variables:
 
-`export CRIMACSCRATCH="/crimac-scratch"`
-`export LSSS=~/lsss/lsss-3.0.0`
+```bash
+export CRIMACSCRATCH="/crimac-scratch"`
+export LSSS=~/lsss/lsss-3.0.0`
+```
 
 where the $CRIMACSCRATCH variable points to the root location of your local data storage and the $LSSS variable points to the location of the installed LSSS installation.
 
@@ -60,50 +62,39 @@ Script to convert raw data to pulse compressed data in netcdf format.
 
 The script reads the raw data for each test data at `ACOUSTIC/EK80/EK80_RAWDATA`, extract metadata from the raw files using ektools, and run the KoronaModule to convert to pulsecompressed data. The output is saved to `ACOUSTIC/GRIDDED/pc_{i}` as net cdf files corresponding to the raw files, where {i} is the ping group number. When multiple ping groups are present in the data, {i} denotes the ping group, otherwise i=1. A figure is generated from the netcdf file and placed in the same folder. .
 
-This uses functionality from `raw2pc.py` and `raw2png.py`.
+This uses functionality from `raw2meta`, `raw2pc.py` and `raw2png.py`.
+
+### raw2meta.py - Parse the raw file for metadata
+Raw2meta parse the raw file using ektools and extracts the ping groups, and assign the metadata to the ping groups. This is needed when ping sequencing 
+are used or when different transducers are multiplexed. Korona does not support ping groups and the data have to be split prior to processing.
+
+This is a library function with a wrapper that allows it to be called as a standalone program.
 
 ### raw2pc.py - Convert a directory of RAW files to pusle compressed NetCDF
+raw2pc convert the raw files to pulse compressed files (when applicable) for each ping group using korona and KoronaScript.
 
-This is a library function with a wrapper that allows it to be called
-as a standalone program.
+This is a library function with a wrapper that allows it to be called as a standalone program.
 
 ### raw2png.py - Make plots from pulse compressed data
+raw2png plots the pulse compressed data from the converted netCDF files.
 
-This is a library function with a wrapper that allows it to be called
-as a standalone program.
+This is a library function with a wrapper that allows it to be called as a standalone program.
+
+
+## Scripts for test data processing (development in progree)
 
 ### raw2tracks.py - Tracking using Korona
+Single target detection and tracking from raw data.
 
-The script reads the raw data for each test data set at `ACOUSTIC/EK80/EK80_RAWDATA`, the output is stored under `ACOUSTIC/LSSS/KORONA`.
-
-
-### pc2annotations.py - Tracking using image based methods
-
-Use Ingrids code to track samples belonging to same target across channels. 
-
-TODO: The script reads the pulse compressed data for each test data set at `ACOUSTIC/GRIDDED/pc_{i}`, run the tracking code and stores the output under `ACOUSTIC/GRIDDED/pc_{i}/tracks.csv`.
-
-The tracking code can be found here: https://github.com/CRIMAC-WP4-Machine-learning/CRIMAC-fm-sed
-
-Frå Ingrid: 
-
-Vedlagt er et eksempel på hvordan jeg ser for meg at output fra tracking-algoritmen kan skrives, basert på tidligere diskusjoner. 
-En kort beskrivelse av innholdet finnes i README her: https://github.com/CRIMAC-WP4-Machine-learning/CRIMAC-fm-sed : Single Echo Detection algorithm on multi channel frequency modulated echosounder data (github.com).
-
-Jeg har også pushet eksempelkode for hvordan csv-fila kan plottes sammen med data: https://github.com/CRIMAC-WP4-Machine-learning/CRIMAC-fm-sed/scripts/visualization/visualize_track_csv.py at main. Koden skal produsere det vedlagte bildet. 
-
-Si gjerne ifra hvis det er noe dere ønsker å endre på i output-formatet. 
-Fila inneholder ikke gode tracks – det er mye rom for forbedringer i algoritmen som produserte dette. 
-
+### pc2tracks - track objects from pulse compressed data
 
 ### pc2tsf - Estimate TS(f)
 
 Based on the pulsecompressed data and the track definitions, estimate TS(f) per target across all channels.
 
-The tracking code can be found here: ?
-
-TODO: The script reads the pulse compressed data and track definitions for each test data set at `ACOUSTIC/GRIDDED/pc_{i}`, run the TS(f) estimation and store the output under `ACOUSTIC/GRIDDED/pc_{i}/??.??`.
-
-
 ### pc2tracks - track objects from pulse compressed data
+
+This script reads the pc data and computes Sv(f).
+
+
 

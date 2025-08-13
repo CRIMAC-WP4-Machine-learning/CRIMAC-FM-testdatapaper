@@ -12,7 +12,6 @@ from raw2pc import raw2pc
 from pc2png import pc2png
 
 # Read metadata & env variables
-# Use os.environ instead of getenv() for earlier bailing if undefined
 crimac = os.environ['CRIMACSCRATCH']
 lsss = os.environ['LSSS']
 
@@ -29,7 +28,10 @@ dataoverview = pd.DataFrame()
 
 # Print the current test data sets
 i = 0
-for _dataset in df['dataset']:
+
+# T2023002 fails, removed from processing
+
+for _dataset in pd.concat([df['dataset'][:11], df['dataset'][12:]]):
     inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                             _dataset, 'ACOUSTIC',
                             'EK80', 'EK80_RAWDATA')
@@ -68,7 +70,7 @@ for _dataset in df['dataset']:
         print(' ')
         print('*****************raw2pc****************************')
         try:
-           raw2pc(inputdir, outputdir, channels)
+            raw2pc(inputdir, outputdir, channels)
         except:
             print('****FAILED****')
         print(' ')
