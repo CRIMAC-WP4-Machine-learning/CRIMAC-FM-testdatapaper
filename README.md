@@ -45,7 +45,7 @@ The `check_data.py` parses the diretories and count files by file extension per 
 ## Scripts for test data processing
 Overview of the data processing scripts.
 
-![processingPipeline](https://github.com/user-attachments/assets/bd5b3977-d6b6-4652-a681-1ec302153077)
+![processingPipeline](processingPipeline.png)
 
 The scripts and function use the following naming conventions:
 
