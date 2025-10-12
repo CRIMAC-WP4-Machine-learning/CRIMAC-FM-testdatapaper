@@ -9,7 +9,7 @@ import regex as re
 import os
 
 from raw2pc import raw2pc
-from pc2png import pc2png
+from pc2png import pc2png, load_plot_ranges
 
 # Read metadata & env variables
 crimac = os.environ['CRIMACSCRATCH']
@@ -25,6 +25,9 @@ df = pd.merge(df_1, df_2, on='dataset', how='inner')
 
 # DF to store data for overview
 dataoverview = pd.DataFrame()
+
+# Load all plot ranges from the CSV once
+all_ranges = load_plot_ranges('testdata_info.csv')
 
 # Print the current test data sets
 i = 0
@@ -68,14 +71,20 @@ for _dataset in pd.concat([df['dataset'][:11], df['dataset'][12:]]):
         print('Raw index information:')
         print(ind)
         print(' ')
+        
         print('*****************raw2pc****************************')
         try:
             raw2pc(inputdir, outputdir, channels)
         except:
             print('****FAILED****')
         print(' ')
+        
         print('*****************pc2png****************************')
-        pc2png(outputdir, channels)
+        # Get the specific range for the current dataset
+        dataset_range = all_ranges.get(_dataset, None) 
+        # Pass the range to the plotting function
+        pc2png(outputdir, channels, dataset_range=dataset_range)
+
         i += 1
         print(' ')
         print(' ')
