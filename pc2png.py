@@ -163,7 +163,7 @@ def plot_echogram_with_gaps(data_array, ax, x, y, norm, cmap_name, colorbar_labe
 
 def pc2png(inputdir, channels, dataset_range=None, debug=False):
     """
-    Generate PC and Sv plots. If dataset_range=(start, stop) provided, pass as ylim.
+    Generate PC and sv plots. If dataset_range=(start, stop) provided, pass as ylim.
     """
     if debug:
         print('Channels:', channels)
@@ -249,7 +249,7 @@ def pc2png(inputdir, channels, dataset_range=None, debug=False):
                     
                     out_png = os.path.join(ncdir, _data.attrs['channel_id'].replace(" ", "_") + '_pc.png')
 
-                # -------- Sv --------
+                # -------- sv --------
                 elif 'sv' in _data:
                     sv = _data['sv']
 
@@ -272,7 +272,7 @@ def pc2png(inputdir, channels, dataset_range=None, debug=False):
                         colorbar_label=r'$s_{v}$ ($m^{-1}$)'
                     )
                     
-                    ax.set_title(f"Sv for {_data.attrs['channel_id']}")
+                    ax.set_title(f"sv for {_data.attrs['channel_id']}")
                     if dataset_range:
                         ax.set_ylim(dataset_range[1], dataset_range[0])
                     else:

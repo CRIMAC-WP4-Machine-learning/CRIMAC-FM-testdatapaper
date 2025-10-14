@@ -19,6 +19,7 @@ def raw2pc(inputdir, outputdir, channels, debug=False):
     Raw2pc convert the raw files to pulse compressed files (when applicable)
     for each ping group using korona and KoronaScript.
     """
+    print(f'Channels: {channels}')
     # Loop over the different ping groups
     for channel in channels:
         name = channels[channel]['channel_names']
@@ -28,6 +29,19 @@ def raw2pc(inputdir, outputdir, channels, debug=False):
         comment = 'Processing pc_' + channel + ' consisting of ' + str(name)
         print(comment)
 
+        print(f'Channel: {channel}, names: {name}')
+
+        # Modified to handle case where 38000 Hz is not present
+        # Logic to determine MainFrequency, needed for Korona to run if no 38000 is present
+        transducer_frequencies = channels[channel]['transducer_frequency']
+        if 38000 in transducer_frequencies:
+            main_freq_hz = 38000
+        else:
+            main_freq_hz = min(transducer_frequencies) # Choose the lowest available frequency
+        
+        main_freq_khz = main_freq_hz // 1000
+        # End logic to determine MainFrequency
+
         # Instantiate the class
         ksi = ks.KoronaScript()
         ksi.add(ksm.Comment(LineBreak='false', Label=comment))
@@ -35,7 +49,7 @@ def raw2pc(inputdir, outputdir, channels, debug=False):
         ksi.add(ksm.EmptyPingRemoval())
         ksi.add(ksm.NetcdfWriter(Active="true",
                                  DirName='pc_' + str(channel),
-                                 # MainFrequency=str(MainFrequency),
+                                 MainFrequency=str(main_freq_khz), # Modified to use determined MainFrequency
                                  MaxRange=400,
                                  WriterType="CHANNEL_GROUPS",
                                  GriddedOutputType="PULSE_COMPRESSION",
@@ -64,4 +78,3 @@ if __name__ == '__main__':
     channels, con, ind = raw2meta.raw2meta(indir)
     print(f'Channels:\n{yaml.dump(channels)}')
     raw2pc(indir, outd, channels, debug=False)
-

@@ -32,9 +32,7 @@ all_ranges = load_plot_ranges('testdata_info.csv')
 # Print the current test data sets
 i = 0
 
-# T2023002 fails, removed from processing
-
-for _dataset in pd.concat([df['dataset'][:11], df['dataset'][12:]]):
+for _dataset in df['dataset']:   # Modified to loop over all datasets in the CSV
     inputdir = os.path.join(crimac, 'CRIMAC-FM-testdata', _dataset[1:5],
                             _dataset, 'ACOUSTIC',
                             'EK80', 'EK80_RAWDATA')
@@ -74,7 +72,7 @@ for _dataset in pd.concat([df['dataset'][:11], df['dataset'][12:]]):
         
         print('*****************raw2pc****************************')
         try:
-            raw2pc(inputdir, outputdir, channels)
+            raw2pc(inputdir, outputdir, channels) 
         except:
             print('****FAILED****')
         print(' ')
@@ -83,7 +81,7 @@ for _dataset in pd.concat([df['dataset'][:11], df['dataset'][12:]]):
         # Get the specific range for the current dataset
         dataset_range = all_ranges.get(_dataset, None) 
         # Pass the range to the plotting function
-        pc2png(outputdir, channels, dataset_range=dataset_range)
+        pc2png(outputdir, channels, dataset_range=dataset_range) # Modified to include dataset_range
 
         i += 1
         print(' ')
