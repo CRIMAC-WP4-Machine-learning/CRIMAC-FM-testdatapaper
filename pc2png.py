@@ -11,6 +11,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 import matplotlib.dates as mdates
+import pandas as pd  # Added for easier timestamp formatting
 
 import xarray as xr
 from netCDF4 import Dataset
@@ -22,7 +23,7 @@ DEBUG = False
 
 # ----------------------------------------------------------------------
 # CSV loader to aquire ranges (if available)
-
+# ... (The user's original load_plot_ranges and infer_dataset_id_from_path functions are unchanged)
 CSV_PATH_DEFAULT = 'testdata_info.csv'
 
 def load_plot_ranges(csv_path):
@@ -102,60 +103,52 @@ def discover_channels(inputdir):
     pc_dirs.sort(key=pc_key)
     return [d[3:] for d in pc_dirs]
 
-def plot_echogram_with_gaps(data_array, ax, x, y, norm, cmap_name, colorbar_label):
+# --- Updated plotting function to collaps gaps while maintaining correct time for the data ---
+def plot_echogram_compressed_time(data_array, ax, x_time, y, norm, cmap_name, colorbar_label):
     """
-    Plots an echogram using pcolormesh, identifying and masking time gaps.
+    Plots an echogram by compressing time gaps.
 
-    Gaps are identified where the time difference between consecutive pings
-    is more than twice the median ping interval. These gaps are rendered as black
-    by setting the data on both sides of the gap to NaN.
-
+    This function plots the data against a sequential ping index instead of
+    the true timestamp. This makes each ping appear equidistant, removing
+    large visual gaps in the plot. The x-axis is then relabeled with the
+    correct timestamps at regular intervals.
     """
-    # Make a copy of the data to avoid modifying the original xarray object
-    data_for_plotting = data_array.copy(deep=True)
+    # Create a new coordinate for the ping index (0, 1, 2, ...)
+    ping_index_coord = 'ping_index'
+    data_with_index = data_array.assign_coords({ping_index_coord: (x_time, np.arange(len(data_array[x_time])))})
 
-    # --- Identify and create data gaps ---
-    times = data_for_plotting[x].values
-    # Calculate the time difference between consecutive pings
-    time_diffs = np.diff(times)
-
-    # Only proceed if there is more than one ping to compare
-    if len(time_diffs) > 0:
-        # Calculate a robust gap threshold (e.g., 2x the median interval)
-        # Using a small value like 1e-9 for median handles cases of identical timestamps
-        median_interval = np.median(time_diffs[time_diffs > np.timedelta64(0)])
-        if median_interval > np.timedelta64(0):
-            gap_threshold = median_interval * 2
-            
-            # Find the indices *before* each gap (the start of the gap)
-            gap_indices_start = np.where(time_diffs > gap_threshold)[0]
-
-            if gap_indices_start.size > 0:
-                # The index *after* the gap
-                gap_indices_end = gap_indices_start + 1
-                
-                # Combine start and end indices, removing duplicates
-                all_gap_indices = np.union1d(gap_indices_start, gap_indices_end)
-                
-                # Set the data at these time indices to NaN to create a black gap
-                # This blanks out the data point before and after the gap.
-                data_for_plotting[{x: all_gap_indices}] = np.nan
-            
-    # --- Plotting ---
-    # Use a copy of the colormap and set the color for empty (NaN) data
+    # Plot the data using the new ping index as the x-axis
     cmap = plt.get_cmap(cmap_name).copy()
-    cmap.set_bad(color='black')
+    cmap.set_bad(color='black')  # Keep black for NaN/missing data
 
-    im = data_for_plotting.plot.pcolormesh(
+    im = data_with_index.plot.pcolormesh(
         ax=ax,
-        x=x,
+        x=ping_index_coord,
         y=y,
         norm=norm,
         cmap=cmap,
-        add_colorbar=False  # We will add the colorbar manually
+        add_colorbar=False
     )
+
+    # Create and apply custom time labels to the x-axis
+    num_pings = len(data_array[x_time])
+    # Select ~10 indices evenly spaced across the data to use for ticks
+    num_ticks = min(10, num_pings)
+    tick_indices = np.linspace(0, num_pings - 1, num=num_ticks, dtype=int)
     
-    # Add a colorbar with the correct label
+    # Get the actual timestamps for these tick indices
+    tick_times = data_array[x_time].values[tick_indices]
+    
+    # Format the timestamps for readability
+    tick_labels = [pd.Timestamp(t).strftime('%H:%M:%S\n%Y-%m-%d') for t in tick_times]
+
+    ax.set_xticks(tick_indices)
+    ax.set_xticklabels(tick_labels, rotation=0, ha='center', fontsize=8)
+    
+    # Update xlabel to note that the axis is not linear
+    ax.set_xlabel('Ping Time')
+
+    # Add the colorbar
     fig = ax.get_figure()
     fig.colorbar(im, ax=ax, label=colorbar_label)
     
@@ -231,10 +224,11 @@ def pc2png(inputdir, channels, dataset_range=None, debug=False):
                     max_val = 10**(-30/10)
                     min_val = 10**(-70/10)
                     
-                    plot_echogram_with_gaps(
+                    # Use the new plotting function
+                    plot_echogram_compressed_time(
                         data_array=y_pc_na_cropped,
                         ax=ax,
-                        x='ping_time',
+                        x_time='ping_time',
                         y='range',
                         norm=LogNorm(vmin=min_val, vmax=max_val),
                         cmap_name='viridis',
@@ -247,6 +241,9 @@ def pc2png(inputdir, channels, dataset_range=None, debug=False):
                     else:
                         ax.invert_yaxis()
                     
+                    ax.set_ylabel('Range (m)')
+                    ax.set_xlabel('Ping Time')
+
                     out_png = os.path.join(ncdir, _data.attrs['channel_id'].replace(" ", "_") + '_pc.png')
 
                 # -------- sv --------
@@ -262,10 +259,11 @@ def pc2png(inputdir, channels, dataset_range=None, debug=False):
                     max_val = 10**(-30/10)
                     min_val = 10**(-82/10)
                     
-                    plot_echogram_with_gaps(
+                    # Use the new plotting function
+                    plot_echogram_compressed_time(
                         data_array=sv_cropped,
                         ax=ax,
-                        x='ping_time',
+                        x_time='ping_time',
                         y='range',
                         norm=LogNorm(vmin=min_val, vmax=max_val),
                         cmap_name='viridis',
@@ -281,13 +279,8 @@ def pc2png(inputdir, channels, dataset_range=None, debug=False):
                     out_png = os.path.join(ncdir, _data.attrs['channel_id'].replace(" ", "_") + '_sv.png')
                 
                 # Common plotting adjustments for both pc and sv
-                ax.set_xlabel('Ping Time')
                 ax.set_ylabel('Range (m)')
-
-                locator = mdates.AutoDateLocator(minticks=5, maxticks=12)
-                formatter = mdates.ConciseDateFormatter(locator)
-                ax.xaxis.set_major_locator(locator)
-                ax.xaxis.set_major_formatter(formatter)
+                ax.set_xlabel('Ping Time')
                 
                 plt.savefig(out_png, dpi=300, bbox_inches='tight')
                 plt.close(fig)
@@ -302,6 +295,8 @@ def pc2png(inputdir, channels, dataset_range=None, debug=False):
                     except Exception: 
                         pass
 
+# ----------------------------------------------------------------------
+# Main execution block
 def parse_args():
     p = argparse.ArgumentParser(description='Generate pc/sv plots; apply ylim from CSV if available.')
     p.add_argument('inputdir', help='Directory that contains pc_* subfolders (e.g., .../ACOUSTIC/GRIDDED)')
@@ -347,4 +342,3 @@ if __name__ == '__main__':
             sys.exit(1)
 
     pc2png(inputdir, channels, dataset_range=dataset_range, debug=DEBUG)
-
