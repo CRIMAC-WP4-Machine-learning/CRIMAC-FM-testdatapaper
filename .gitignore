@@ -1,2 +1,17 @@
-.venv/
+# ---- Python build / packaging ----
+*.egg-info/
+dist/
+build/
+
+# ---- Python bytecode ----
 __pycache__/
+*.py[cod]
+
+# ---- Editor / backup files ----
+*~
+*.swp
+*.swo
+
+# ---- Log files -----
+macvin.log
+cred.txt
