@@ -17,7 +17,9 @@ import xarray as xr
 from netCDF4 import Dataset
 import yaml
 
-from raw2meta import raw2meta
+from crimactools.raw2meta import raw2meta
+
+
 
 DEBUG = False
 

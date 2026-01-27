@@ -44,7 +44,7 @@ def setup_logging(
     log_file = Path(log_file)
 
     # ---- Base format ----
-    fmt = "%(asctime)s | %(levelname)-8s | %(name)-8s | %(message)s"
+    fmt = "%(asctime)s | %(levelname)-8s | %(name)-15s | %(message)s"
     datefmt = "%Y-%m-%d %H:%M:%S"
 
     plain_formatter = logging.Formatter(fmt=fmt, datefmt=datefmt)
