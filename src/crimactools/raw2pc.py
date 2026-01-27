@@ -164,8 +164,7 @@ def load_plot_ranges(csv_path):
     """
     ranges = {}
     if not os.path.isfile(csv_path):
-        if DEBUG:
-            print(f"[WARN] CSV not found: {csv_path}")
+        logger.warning(f"CSV not found: {csv_path}")
         return ranges
 
     with open(csv_path, newline="", encoding="utf-8") as f:
@@ -192,10 +191,8 @@ def load_plot_ranges(csv_path):
 
             ranges[ds] = (start, stop)
 
-    if DEBUG:
-        print(f"[DEBUG] Loaded {len(ranges)} dataset ranges from CSV.")
-        if "T2020001" in ranges:
-            print(f"[DEBUG] CSV has T2020001 -> {ranges['T2020001']}")
+    logger.debug(f"Loaded {len(ranges)} dataset ranges from CSV.")
+    
     return ranges
 
 
