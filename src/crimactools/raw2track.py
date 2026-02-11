@@ -254,7 +254,6 @@ def track2nc(_inputdir, _outputdir, channels):
                     t_infos.append(parsed_datagram)
 
             if len(t_borders) == 0:
-                # create empty netcdf file (why dont you do this before the for loop?)
                 ds = xr.Dataset(
                     {
                         'ping_time': (['i'], []),

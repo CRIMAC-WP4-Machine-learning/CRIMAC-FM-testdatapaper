@@ -16,23 +16,24 @@ def _raw2track_data(indir: Path, outd: Path, griddir: Path, dataset_id: str, ran
     #if outd.exists():
     #    raise RuntimeError(f'Output dir "{outd}" already exists. Aborting.')
     #    exit(-1)
+    if os.path.exists(indir):
+        outd.mkdir(parents=True, exist_ok=True)
+        channels, con, ind = raw2meta(indir)
+        raw2track(indir, outd, channels)
+        dataset_range = ranges.get(dataset_id, None)
+        if dataset_range:
+            logger.debug(f'Using ylim from CSV: {dataset_range} (meters)')
+        else:
+            logger.warning('No ylim from CSV; plotting full range.')
 
-    outd.mkdir(parents=True, exist_ok=True)
-    channels, con, ind = raw2meta(indir)
-    raw2track(indir, outd, channels)
+        track2nc(outd, outd, channels)
+        track2png(griddir, outd, channels)
     
     logger.debug(indir)
     logger.debug(f'Inferred dataset_id={dataset_id}')
     logger.debug(f'CSV has range for dataset? {dataset_id in ranges}')
 
-    dataset_range = ranges.get(dataset_id, None)
-    if dataset_range:
-        logger.debug(f'Using ylim from CSV: {dataset_range} (meters)')
-    else:
-        logger.warning('No ylim from CSV; plotting full range.')
-
-    track2nc(outd, outd, channels)
-    track2png(griddir, outd, channels)
+    
 
 def raw2track_data():
     # Read metadata & env variables

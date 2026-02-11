@@ -17,11 +17,73 @@ from matplotlib.colors import LogNorm
 import pandas as pd  # Added for easier timestamp formatting
 import xarray as xr
 from netCDF4 import Dataset
+import mmap
+import struct
 
 
 matplotlib.use("Agg")
 
 logger = logging.getLogger("raw2pc")
+
+def index(f):
+    """
+    Build an index of datagrams in a Simrad RAW file.
+    This is a list of position, type, length, and (unparsed) contents.
+    """
+    idx = []
+    with open(f, "rb") as fh:
+        with mmap.mmap(fh.fileno(), length=0, access=mmap.ACCESS_READ) as mf:
+            position = 0
+            while position < len(mf):
+                length, msg = struct.unpack('<l4s', mf[position:position + 8])
+                if position + length > len(mf):
+                    raise Exception('Premature EOF, truncated RAW file?')
+                v = struct.unpack('<l', mf[position + length + 4:position + length + 8])
+                t = msg.decode('latin-1')
+                if v[0] != length: print(
+                    f'Datagram at {position}: control lenght mismatch ({length} vs {v[0]}) - endianness error or corrupt file?')
+                idx.append((position, t, length, mf[position + 4:position + 4 + length]))
+                position += length + 8
+
+    return idx
+
+def raw2index(inputdir, outputdir):
+    from ektools.simrad_parsers import SimradRawParser
+    """Create index files for the pulse compressed files"""
+    outputdir = os.path.join(outputdir, 'index')
+    if not os.path.exists(outputdir):
+        os.makedirs(outputdir)
+     # get raw files
+    raw_files = [os.path.join(inputdir, f) for f in os.listdir(inputdir) if f.endswith('.raw')]
+    if len(raw_files) == 0: 
+        print(f"No raw files found in {inputdir}")
+        return
+    
+    
+    for raw_file in raw_files:        
+        outputpath = os.path.join(outputdir, f'{os.path.basename(raw_file)[:-4]}_index.nc')
+        if os.path.exists(outputpath):
+            continue
+        ping_times = []
+        for pos, typ, length, msg in index(raw_file):
+            if typ == 'RAW3':
+                parser = SimradRawParser()
+                parsed_datagram = parser._unpack_contents(msg, length, 3)
+                ping_time = np.datetime64(parsed_datagram['timestamp'], 'ns')
+                if ping_time not in ping_times:
+                    ping_times.append(ping_time)
+        ds = xr.Dataset(
+            data_vars=dict(
+                ping_time=(["i"], ping_times),
+            ),
+            coords=dict(
+                i=range(len(sorted(ping_times))),
+            )
+        )
+        
+        #print(f'Writing index file for {raw_file} to {outputpath}')
+
+        ds.to_netcdf(outputpath)
 
 
 def raw2pc(inputdir: Path, outputdir: Path, channels: dict, debug=False):

@@ -2,7 +2,7 @@ import pandas as pd
 import os
 from pathlib import Path
 from crimactools.logging import setup_logging
-from crimactools.raw2pc import raw2meta, raw2pc, pc2png, load_plot_ranges
+from crimactools.raw2pc import raw2meta, raw2pc, raw2index, pc2png, load_plot_ranges
 import logging
 
 setup_logging(log_file="crimactools.log")
@@ -17,6 +17,7 @@ def _raw2pc_data(indir: Path, outd: Path, dataset_id: str, ranges: dict) -> None
     if os.path.exists(indir):
         outd.mkdir(parents=True, exist_ok=True)
         channels, con, ind = raw2meta(indir)
+        raw2index(indir, outd)
         raw2pc(indir, outd, channels, debug=False)
         dataset_range = ranges.get(dataset_id, None)
         if dataset_range:

@@ -10,12 +10,18 @@ setup_logging(log_file="crimactools.log")
 
 logger = logging.getLogger("pc2tsf_data")
 
-def _pc2tsf_data(rawdir: Path, koronadir:Path, griddir: Path, tsfdir: Path, fft_settings_dir: Path, dataset_id: str) -> None:
+def _pc2tsf_data(rawdir: Path, 
+                 koronadir:Path, 
+                 griddir: Path, 
+                 tsfdir: Path, 
+                 fft_settings_dir: Path, 
+                 workfiledir: Path, 
+                 dataset_id: str) -> None:
     paths_exist = (os.path.exists(rawdir)) & (os.path.exists(koronadir)) & (os.path.exists(griddir))
     if paths_exist:
         tsfdir.mkdir(parents=True, exist_ok=True)
         channels, con, ind = raw2meta(rawdir)
-        pc2tsf(koronadir, griddir, tsfdir, fft_settings_dir,  channels)
+        pc2tsf(koronadir, griddir, tsfdir, fft_settings_dir, workfiledir,  channels)
     else:
         print('Missing file paths')
         print(f'Raw dir {rawdir}')
@@ -62,10 +68,13 @@ def pc2tsf_data():
         tsfdir = data_path / Path("ACOUSTIC", "TSF")
 
         # List FFT settings dir
-        fftdir = data_path / Path("ACOUSTIC", "TSF", 'FFT_settings')
+        fftdir = data_path / Path("ACOUSTIC", "TSF", "FFT_settings")
+
+        # List workfile directory
+        workfiledir = data_path / Path("ACOUSTIC", "LSSS", "Work")
 
         try:
-            _pc2tsf_data(raw, koronadir, griddir, tsfdir, fftdir, _dataset)
+            _pc2tsf_data(raw, koronadir, griddir, tsfdir, fftdir, workfiledir, _dataset)
             logger.info(f"Completed pc2tsf : {_dataset}")
         except Exception:
             logger.exception("Failed pc2tsf on: %s", _dataset)
