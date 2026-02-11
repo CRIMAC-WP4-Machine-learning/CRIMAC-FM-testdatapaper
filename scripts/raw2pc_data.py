@@ -14,22 +14,22 @@ def _raw2pc_data(indir: Path, outd: Path, dataset_id: str, ranges: dict) -> None
     #if outd.exists():
     #    raise RuntimeError(f'Output dir "{outd}" already exists. Aborting.')
     #    exit(-1)
-
-    outd.mkdir(parents=True, exist_ok=True)
-    channels, con, ind = raw2meta(indir)
-    raw2pc(indir, outd, channels, debug=False)
+    if os.path.exists(indir):
+        outd.mkdir(parents=True, exist_ok=True)
+        channels, con, ind = raw2meta(indir)
+        raw2pc(indir, outd, channels, debug=False)
+        dataset_range = ranges.get(dataset_id, None)
+        if dataset_range:
+            logger.debug(f'Using ylim from CSV: {dataset_range} (meters)')
+        else:
+            logger.warning('No ylim from CSV; plotting full range.')
+        pc2png(outd, channels, dataset_range=dataset_range)
+    else:
+        logger.debug(f'Input directory not found at {indir}')
     
     logger.debug(indir)
     logger.debug(f'Inferred dataset_id={dataset_id}')
     logger.debug(f'CSV has range for dataset? {dataset_id in ranges}')
-
-    dataset_range = ranges.get(dataset_id, None)
-    if dataset_range:
-        logger.debug(f'Using ylim from CSV: {dataset_range} (meters)')
-    else:
-        logger.warning('No ylim from CSV; plotting full range.')
-
-    pc2png(outd, channels, dataset_range=dataset_range)
 
 
 def raw2pc_data():

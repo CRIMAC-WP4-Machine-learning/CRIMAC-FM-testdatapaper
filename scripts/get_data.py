@@ -5,10 +5,10 @@ import zipfile
 from tqdm import tqdm
 import csv
 from pathlib import Path
-from crimactools.logging import setup_logging
+#from crimactools.logging import setup_logging
 import logging
 
-setup_logging(log_file="crimactools.log")
+#setup_logging(log_file="crimactools.log")
 logger = logging.getLogger("get_data")
 
 # This script downloads the EK80 FM testdata from nmdc.no

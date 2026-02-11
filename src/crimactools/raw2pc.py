@@ -85,6 +85,7 @@ def raw2pc(inputdir: Path, outputdir: Path, channels: dict, debug=False):
         # Remove temporary korona files
         for f in Path(outputdir).glob("*korona.*"):
             f.unlink(missing_ok=True)
+        # 
 
 
 def raw2meta(inputdir):
