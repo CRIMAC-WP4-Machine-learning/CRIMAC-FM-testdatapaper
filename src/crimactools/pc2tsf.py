@@ -634,7 +634,7 @@ def read_workfile(work_file_path, channel):
 
 
 #REWORK THIS FUNCTION TO NOT HAVE HARDCODED CHANNELS!!!!
-def filter_tracks_by_workfile(targets, workfile, indexfile, ping_times, frequency):
+def filter_tracks_by_workfile(targets, workfile, indexfile, ping_times, frequency, channels):
     '''
     filter the tracks by removing the tracks that are masked in the work file
     :param targets: the detected tracks.
@@ -650,7 +650,7 @@ def filter_tracks_by_workfile(targets, workfile, indexfile, ping_times, frequenc
                     333000.: '5',
                 }
     channel = channel_dict[frequency]
-    work_data = read_workfile(workfile, channel)
+    work_data = read_workfile(workfile, channel) # How can channel be defined in a proper way to not be hardcoded frequency indices
     index = xr.open_dataset(indexfile, engine='netcdf4')
     delete_masks = work_data['masking_data']
     delete_masks_pingOffsets = np.array([d['pingOffset'] for d in delete_masks])
@@ -740,10 +740,11 @@ def pc2tsf(koronadir: Path, griddeddir: Path, outputdir:Path, FFTdir: Path, work
             continue
         trackdir = os.path.join(koronadir, 'track_' + channel)
         griddir = os.path.join(griddeddir, 'pc_' + channel)
+        indexdir = os.path.join(griddeddir, 'index')
         outdir = os.path.join(outputdir, 'TSf_' + channel)
         #try:
         print(f'Calculating TS(f) for tracks on channel {channel}')
-        _pc2tsf(trackdir, griddir, outdir, FFTdir, workfiledir)
+        _pc2tsf(trackdir, griddir, indexdir, outdir, FFTdir, workfiledir)
         #except:
             #print(f'FAILED calculating TS(f) for tracks on channel {channel}')
 

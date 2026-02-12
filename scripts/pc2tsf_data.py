@@ -23,10 +23,10 @@ def _pc2tsf_data(rawdir: Path,
         channels, con, ind = raw2meta(rawdir)
         pc2tsf(koronadir, griddir, tsfdir, fft_settings_dir, workfiledir,  channels)
     else:
-        print('Missing file paths')
-        print(f'Raw dir {rawdir}')
-        print(f'Korona dir {koronadir}')
-        print(f'Gridded dir {griddir}')
+        logger.debug('Missing file paths')
+        logger.debug(f'Raw dir {rawdir}')
+        logger.debug(f'Korona dir {koronadir}')
+        logger.debug(f'Gridded dir {griddir}')
     
     logger.debug(rawdir)
     logger.debug(koronadir)
