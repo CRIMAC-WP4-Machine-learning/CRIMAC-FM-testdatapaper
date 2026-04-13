@@ -336,7 +336,7 @@ def track2nc(_inputdir, _outputdir, channels):
 def track2png(_pcdir, _koronadir, channels):
     # List NC files
     for channel in channels:
-        pcdir = os.path.join(_pcdir, 'track_'+channel)
+        pcdir = os.path.join(_pcdir, 'pc_'+channel)
         koronadir = os.path.join(_koronadir, 'track_'+channel)
         ncfiles = glob.glob(os.path.join(pcdir, '*.nc'))
 
@@ -355,31 +355,77 @@ def track2png(_pcdir, _koronadir, channels):
             # Assume that the group from the firs data set is similar across all nc files
             nc_dataset = Dataset(ncfile, "r")
             grp = sorted(list(nc_dataset.groups.keys()))
+            print(f"Filename: {filename}")  # Check filename
+            print(f"Groups found: {grp}")  # Check what groups exist
 
-            # Read data
             data = [xr.open_dataset(ncfile, engine='netcdf4', group=_grp)
                     for _grp in grp if not _grp == 'Environment']
+            print(f"Data length: {len(data)}")  # Should match non-Environment groups
+            
+            # Skip if the file is empty (no groups other than Environment)
+            if len(data) == 0:
+                print(f"Skipping {filename}: no data groups found (only Environment or no groups)")
+                continue
 
             # Regex to extract channel from channel_id
             # TODO better way to get channel frequency information?
             channel_ids = [d.attrs['channel_id'] for d in data]
             frequencies = [int(re.search(r'ES(\d+)', channel_id).group(1)) * 1000 for channel_id in channel_ids]
 
-            # Initialize track masks, like pulse_compressed_re, but without sector dimension
-            track_masks = [xr.full_like(d['pulse_compressed_re'].isel(sector=0), fill_value=np.nan) for d in data]
+            # Initialize track masks based on available data type
+            track_masks = []
+            for d in data:
+                if 'pulse_compressed_re' in d:
+                    track_masks.append(xr.full_like(d['pulse_compressed_re'].isel(sector=0), fill_value=np.nan))
+                elif 'sv' in d:
+                    track_masks.append(xr.full_like(d['sv'], fill_value=np.nan))
+                else:
+                    raise ValueError(f"No pulse_compressed or sv data found in {ncfile}")
+
+            # Crop data to valid range bins and store cropped versions
+            data_cropped = []
+            track_masks_cropped = []
+            freq_idx_mapping = {}  # Maps original frequency index to cropped index
+            
+            for data_idx, _data in enumerate(data):
+                # Handle pulse-compressed data
+                if 'pulse_compressed_re' in _data and 'pulse_compressed_im' in _data:
+                    # Mean of pulsecompressed data across quadrants
+                    y_pc_n = (_data['pulse_compressed_re'] + _data[
+                        'pulse_compressed_im'] * 1j).mean(dim="sector")
+                    y_pc_na = abs(y_pc_n)
+                # Handle sv data
+                elif 'sv' in _data:
+                    y_pc_na = _data['sv']
+                else:
+                    raise ValueError(f"No pulse_compressed or sv data found in group {_data.attrs.get('channel_id', data_idx)}")
+
+                # Find valid range bins (not all NaN or zero)
+                valid_range_bins = ~np.all(
+                    np.isnan(y_pc_na.values) | (y_pc_na.values == 0), axis=0
+                )
+                
+                if not np.any(valid_range_bins):
+                    print(f"Warning: No valid data in {_data.attrs.get('channel_id', data_idx)}")
+                    continue
+                
+                # Crop to valid ranges
+                y_pc_na_cropped = y_pc_na.isel(range=np.where(valid_range_bins)[0])
+                track_mask_cropped = track_masks[data_idx].isel(range=np.where(valid_range_bins)[0])
+                
+                # Store mapping from original index to cropped index
+                freq_idx_mapping[data_idx] = len(data_cropped)
+                
+                data_cropped.append(y_pc_na_cropped.T)
+                track_masks_cropped.append(track_mask_cropped)
 
             # initialize figure
-            fig, axs = plt.subplots(1, len(data), figsize=(20, 10))
+            fig, axs = plt.subplots(1, len(data_cropped), figsize=(20, 10))
 
-            if len(data) == 1:
+            if len(data_cropped) == 1:
                 axs = [axs]
 
-            for data_idx, _data in enumerate(data):
-                # Mean of pulsecompressed data across quadrants
-                y_pc_n = (_data['pulse_compressed_re'] + _data[
-                    'pulse_compressed_im'] * 1j).mean(dim="sector")
-                y_pc_na = abs(y_pc_n).T  # Absolute value of y_pc_n
-
+            for data_idx, y_pc_na in enumerate(data_cropped):
                 # Plot the data
                 y_pc_na.plot.imshow(norm=LogNorm(), ax=axs[data_idx])
 
@@ -396,17 +442,25 @@ def track2png(_pcdir, _koronadir, channels):
                     print(f"Frequency channel {frequency} not found in gridded dataset {ncfile}")
                     continue
                 frequency_idx = frequency_idx[0][0]
+                
+                # Check if this frequency index was included in cropped data
+                if frequency_idx not in freq_idx_mapping:
+                    print(f"Frequency {frequency} Hz had no valid data and was skipped")
+                    continue
+                cropped_idx = freq_idx_mapping[frequency_idx]
 
                 # Convert to datetime[ns], replace Z to silence deprecation warning (time zone info)
                 ping_time = track.ping_time  # np.datetime64(track.ping_time.values.replace('Z', ''))
-                range_slice = track_masks[frequency_idx].sel(range=slice(start_range, stop_range))
+                range_slice = track_masks_cropped[cropped_idx].sel(range=slice(start_range, stop_range))
                 range_slice.sel(ping_time=ping_time, method='nearest')[:] = 1
 
             # Plot contour of track mask
-            for freq_idx in range(len(data)):
-                track_mask = track_masks[freq_idx].T
-                track_mask.plot.imshow(ax=axs[freq_idx], cmap='autumn', add_colorbar=False)
-                axs[freq_idx].set_title(f'{frequencies[freq_idx]} Hz')
+            for cropped_idx in range(len(data_cropped)):
+                # Find the original frequency index for labeling
+                orig_idx = [k for k, v in freq_idx_mapping.items() if v == cropped_idx][0]
+                track_mask = track_masks_cropped[cropped_idx].T
+                track_mask.plot.imshow(ax=axs[cropped_idx], cmap='autumn', add_colorbar=False)
+                axs[cropped_idx].set_title(f'{frequencies[orig_idx]} Hz')
 
                 # Alternatively, plot contours of tracks
                 # track_mask.plot.contour(levels=[0, 1], colors='white', alpha=1.0, linewidths=1, linestyles='solid', ax=axs[freq_idx])
