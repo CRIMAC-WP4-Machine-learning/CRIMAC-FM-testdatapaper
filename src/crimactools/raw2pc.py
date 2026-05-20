@@ -2,14 +2,11 @@ import KoronaScript.Modules as ksm
 import KoronaScript as ks
 import ektools as E
 import os
-import yaml
-import sys
 import logging
 from pathlib import Path
 import glob
 import re
 import csv
-import argparse
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -18,13 +15,12 @@ import pandas as pd  # Added for easier timestamp formatting
 import xarray as xr
 from netCDF4 import Dataset
 
-
 matplotlib.use("Agg")
 
-logger = logging.getLogger("raw2pc")
+logger = logging.getLogger(__name__)
 
 
-def raw2pc(inputdir: Path, outputdir: Path, channels: dict, debug=False):
+def raw2pc(inputdir: Path, outputdir: Path, channels: dict, dryrun: bool):
     """
     Raw2pc convert the raw files to pulse compressed files (when applicable)
     for each ping group using korona and KoronaScript.
@@ -78,8 +74,8 @@ def raw2pc(inputdir: Path, outputdir: Path, channels: dict, debug=False):
             )
         )
 
-        if debug:
-            ksi.write()
+        if dryrun:
+            logger.debug(ksi.write())
         ksi.run(src=inputdir, dst=outputdir)
 
         # Remove temporary korona files
@@ -448,43 +444,3 @@ def pc2png(inputdir: Path, channels: dict, dataset_range=None, debug=False):
                     except Exception:
                         pass
 
-
-"""
-# someone needs to review this:
-def parse_args():
-    p = argparse.ArgumentParser(
-        description="Generate pc/sv plots; apply ylim from CSV if available."
-    )
-    p.add_argument(
-        "inputdir",
-        help="Directory that contains pc_* subfolders (e.g., .../ACOUSTIC/GRIDDED)",
-    )
-    p.add_argument(
-        "--csv",
-        default=CSV_PATH_DEFAULT,
-        help="Path to datafile.csv with range_start/range_stop",
-    )
-    p.add_argument(
-        "--dataset-id", default=None, help="Override dataset id (e.g., T2020001)"
-    )
-    return p.parse_args()
-
-
-if __name__ == "__main__":
-    args = parse_args()
-    if not len(sys.argv) == 3:
-        print(f"Usage: {sys.argv[0]} <inputdir> <outputdir>")
-        exit(-1)
-    indir, outd = sys.argv[1], sys.argv[2]
-    indir = Path(indir)
-    outd = Path(outd)
-
-    if os.path.exists(outd):
-        print(f'Output dir "{outd}" already exists. Aborting.')
-        exit(-1)
-
-    os.makedirs(outd, exist_ok=True)
-    channels, con, ind = raw2meta(indir)
-    print(f"Channels:\n{yaml.dump(channels)}")
-    raw2pc(indir, outd, channels, debug=False)
-"""
