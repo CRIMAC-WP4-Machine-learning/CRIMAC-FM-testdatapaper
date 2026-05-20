@@ -35,6 +35,7 @@ dev = [
 list = "crimactools.pipeline:list_datasets"
 get = "crimactools.pipeline:get_dataset"
 raw2pc = "crimactools.pipeline:raw2pc"
+pc2png = "crimactools.pipeline:pc2png"
 
 [tool.uv]
 package = true

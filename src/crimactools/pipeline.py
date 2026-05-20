@@ -4,6 +4,7 @@ from crimactools.tasks import (
     raw2pc_task,
     list_datasets_task,
     get_dataset_task,
+    pc2png_task,
 )
 from crimactools.logging import setup_logging
 
@@ -51,3 +52,5 @@ def get_dataset():
 def raw2pc():
     run_task(raw2pc_task)
 
+def pc2png():
+    run_task(pc2png_task)

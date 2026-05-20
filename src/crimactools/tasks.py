@@ -7,6 +7,7 @@ from zipfile import ZipFile
 from crimactools.raw2pc import (
     raw2meta,
     raw2pc,
+    pc2png,
 )
 
 logger = logging.getLogger(__name__)
@@ -73,10 +74,8 @@ def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False)
             f'Save folder "{savefolder}" already exists and is not empty.'
         )
 
-    savefolder.mkdir(parents=True, exist_ok=True)
-
     # Store path
-    zip_file = savefolder / Path(dataset_id + ".zip")
+    zip_file = datadir / Path(dataset_id + ".zip")
 
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
@@ -85,9 +84,9 @@ def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False)
                 f.write(chunk)
 
         # Unzip file
-        logger.info("Extracting %s -> %s", zip_file, savefolder)
+        logger.info("Extracting %s -> %s", zip_file, datadir)
         with ZipFile(zip_file, "r") as zf:
-            zf.extractall(savefolder)
+            zf.extractall(datadir)
 
         # Remove zip file
         zip_file.unlink()
@@ -96,25 +95,6 @@ def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False)
 # -----
 # Tasks
 # -----
-
-def raw2pc_task(
-        datadir: Path,
-        dataset_id: str,
-        dry_run: bool = False,
-):
-
-    logger.info(f"#### RAW2PC for {dataset_id} ####")
-
-    data = folder_structure(datadir, dataset_id)
-    indir = data["ekdir"]
-    outdir = data["gridded"]
-    logger.info(f"Processing raw files from {indir}")
-
-    channels, con, ind = raw2meta(indir)
-    logger.info(f"Channels:\n{yaml.dump(channels)}")
-
-    logger.info(f"Processing raw files to nc files in {outdir}")
-    raw2pc(indir, outdir, channels, dry_run)
 
 
 def list_datasets_task(dataset_id: str | None = None):
@@ -136,3 +116,34 @@ def get_dataset_task(
         url =  _data[2]
         get_dataset(datadir, dataset_id, url, dry_run)
 
+
+def raw2pc_task(
+        datadir: Path,
+        dataset_id: str,
+        dry_run: bool = False,
+):
+
+    logger.info(f"#### RAW2PC for {dataset_id} ####")
+
+    data = folder_structure(datadir, dataset_id)
+    indir = data["ekdir"]
+    outdir = data["gridded"]
+    logger.info(f"Processing raw files from {indir}")
+    
+    channels, con, ind = raw2meta(indir)
+    logger.info(f"Channels:\n{yaml.dump(channels)}")
+
+    logger.info(f"Processing raw files to nc files in {outdir}")
+    raw2pc(indir, outdir, channels, dry_run)
+
+
+def pc2png_task(
+        datadir: Path,
+        dataset_id: str,
+        dry_run: bool = False,
+):
+
+    data = folder_structure(datadir, dataset_id)
+    logger.info(f"#### PC2PNG for {dataset_id} ####")
+    channels, con, ind = raw2meta(data["ekdir"])
+    pc2png(data["gridded"], channels)

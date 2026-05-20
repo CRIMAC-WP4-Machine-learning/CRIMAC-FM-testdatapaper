@@ -94,10 +94,10 @@ def raw2meta(inputdir):
 
     """
 
-    rawf = [_f for _f in os.listdir(inputdir) if os.path.splitext(_f)[-1] == ".raw"]
-
+    files = [p for p in inputdir.iterdir() if p.is_file() and p.suffix == ".raw"]
+    
     # Read the index from the first raw file using ektools
-    ix = E.index(os.path.join(inputdir, rawf[0]))
+    ix = E.index(files[0])
 
     # Configuration data gram
     con_par = E.parse(ix[0][3])["configuration"]  # Configuration data gram
