@@ -43,15 +43,6 @@ def run_task(task, *, cruise_required=False, extra_args=None):
     task(**kwargs)
 
 def list_datasets():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--dataset-id",
-        type=str,
-        required=False,
-        help=DEFAULT_CRUISE_HELP,
-    )
-    dataset_id = vars(parser.parse_args()).values()
-    #list_datasets_task(dataset_id=dataset_id)
     list_datasets_task()
 
 def get_dataset():

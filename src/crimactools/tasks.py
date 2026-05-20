@@ -53,16 +53,12 @@ def list_datasets(dataset_id: str | None = None) -> list:
     if dataset_id:
         # Filter the results based on dataset_id
         results = [r for r in results if r[0] == dataset_id]
-        logger.info(dataset_id)
     return results
 
 
 def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False):
 
     logger.info(f"#### Downloading {dataset_id} ####")
-
-    import pdb
-    pdb.set_trace()
 
     # Get standard folder structure
     data = folder_structure(datadir, dataset_id)
@@ -81,8 +77,6 @@ def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False)
 
     # Store path
     zip_file = savefolder / Path(dataset_id + ".zip")
-
-    logger.info(f"Retrieving: {dataset_id}")
 
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
@@ -125,7 +119,6 @@ def raw2pc_task(
 
 def list_datasets_task(dataset_id: str | None = None):
     # This prints the list of aviable data sets
-    logger.info(dataset_id)
     results = list_datasets(dataset_id)
     print(" ".join(item[0] for item in results))
 
