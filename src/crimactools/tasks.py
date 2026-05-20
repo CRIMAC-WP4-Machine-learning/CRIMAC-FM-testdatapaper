@@ -59,7 +59,13 @@ def list_datasets(dataset_id: str | None = None) -> list:
 
 def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False):
 
-    logger.info(f"#### Downloading {dataset_id} ####")
+    logger.info(f"#### Downloading {url} ####")
+
+    if not Path.exists(datadir):
+        logger.info(f'#### Creating data directory "{datadir}" ####')
+        Path(datadir).mkdir(parents=True, exist_ok=True)
+    elif not Path.is_dir(datadir):
+        logger.error(f'#### Data dirctory "{datadir}" exists, but is not a directory ####')
 
     # Get standard folder structure
     data = folder_structure(datadir, dataset_id)
