@@ -34,11 +34,7 @@ dev = [
 
 list = "crimactools.pipeline:list_datasets"
 get = "crimactools.pipeline:get_dataset"
-#status = "crimactools.status:main"
 raw2pc = "crimactools.pipeline:raw2pc"
 
 [tool.uv]
 package = true
-
-[tool.uv.sources]
-crimac-reportgeneration = { git = "ssh://git@git.imr.no/crimac-wp4-machine-learning/CRIMAC-reportgeneration-zarr.git" }
