@@ -24,7 +24,7 @@ def run_task(task, *, cruise_required=False, extra_args=None, description=None):
         "--dry-run",
         action="store_true",
         help="Run task for testing without running the Korona process.")
-    
+
     parser.add_argument(
         "--dataset-id",
         type=str,

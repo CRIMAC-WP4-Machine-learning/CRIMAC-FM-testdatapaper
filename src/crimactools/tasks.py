@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # Helper funtions
 # ---------------
 
+
 def folder_structure(datadir: Path, dataset_id: str):
     # Standard folder structure
     data = {}
@@ -114,12 +115,12 @@ def get_dataset_task(
         dataset_id: str | None = None,
         dry_run: bool = False,
 ):
-    
+
     data = list_datasets(dataset_id)
     # Get data
     for _data in data:
         dataset_id = _data[0]
-        url =  _data[2]
+        url = _data[2]
         get_dataset(datadir, dataset_id, url, dry_run)
 
 
@@ -135,7 +136,7 @@ def raw2pc_task(
     indir = data["ekdir"]
     outdir = data["gridded"]
     logger.info(f"Processing raw files from {indir}")
-    
+
     channels, con, ind = raw2meta(indir)
     logger.info(f"Channels:\n{yaml.dump(channels)}")
 
@@ -164,6 +165,7 @@ def raw2tracks_task(
     logger.error("Not implemented yet.")
 
     # data = folder_structure(datadir, dataset_id)
+
 
 def pc2annotations_task(
         datadir: Path,

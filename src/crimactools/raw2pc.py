@@ -25,7 +25,7 @@ def raw2pc(inputdir: Path, outputdir: Path, channels: dict, dryrun: bool):
     Raw2pc convert the raw files to pulse compressed files (when applicable)
     for each ping group using korona and KoronaScript.
     """
-    
+
     # Loop over the different ping groups
     for channel in channels:
         name = channels[channel]["channel_names"]
@@ -95,7 +95,7 @@ def raw2meta(inputdir):
     """
 
     files = [p for p in inputdir.iterdir() if p.is_file() and p.suffix == ".raw"]
-    
+
     # Read the index from the first raw file using ektools
     ix = E.index(files[0])
 
@@ -188,7 +188,7 @@ def load_plot_ranges(csv_path):
             ranges[ds] = (start, stop)
 
     logger.debug(f"Loaded {len(ranges)} dataset ranges from CSV.")
-    
+
     return ranges
 
 
@@ -443,4 +443,3 @@ def pc2png(inputdir: Path, channels: dict, dataset_range=None, debug=False):
                         _data.close()
                     except Exception:
                         pass
-
