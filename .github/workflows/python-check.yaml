@@ -24,6 +24,9 @@ jobs:
       - name: Run flake8 check
         run: uvx flake8 src/
 
+      - name: Install dependencies (needed for ty)
+        run: uv sync --dev
+
       - name: Run ty check
         run: uvx ty check
 
