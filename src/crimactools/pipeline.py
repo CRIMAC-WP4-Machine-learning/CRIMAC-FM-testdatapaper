@@ -49,41 +49,50 @@ def run_task(task, *, cruise_required=False, extra_args=None, description=None):
 
 
 def list_datasets():
-    list_datasets_task(
-             description="List available data sets from NMDC repository")
-    )
+    description = "List available data sets from NMDC repository"
+    parser = argparse.ArgumentParser(description=description)
+    args = parser.parse_args()
+    kwargs = vars(args)
+    list_datasets_task(**kwargs)
 
 
 def get_dataset():
     run_task(get_dataset_task,
-             description="Download and unpack a dataset from the NMDC repository")
+             description="Download and unpack a dataset from the NMDC repository"
+             )
 
 
 def raw2pc():
     run_task(raw2pc_task,
-             description="Convert a dataset from EK80 RAW files to pulse compressed NetCDF")
+             description="Convert a dataset from EK80 RAW files to pulse compressed NetCDF"
+             )
 
 
 def raw2tracks():
     run_task(raw2tracks_task,
-             description="Tracking using the Korona tracking module")
+             description="Tracking using the Korona tracking module"
+             )
 
 
 def pc2png():
     run_task(pc2png_task,
-             description="Generate an echogram image from pulse compressed data")
+             description="Generate an echogram image from pulse compressed data"
+             )
 
 
 def pc2annotations():
     run_task(pc2png_task,
-             description="Generate track definitions from preprocess data")
+             description="Generate track definitions from preprocess data"
+             )
 
 
 def pc2tsf():
     run_task(pc2tsf_task,
-             description="Calculate TS(f) from track annotations and pulse compressed data")
+             description="Calculate TS(f) from track annotations and pulse compressed data"
+             )
 
 
 def pc2svf():
     run_task(pc2svf_task,
-             description="Calculate sv(f) from pulse compressed data")
+             description="Calculate sv(f) from pulse compressed data"
+             )
