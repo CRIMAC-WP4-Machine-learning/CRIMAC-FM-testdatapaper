@@ -28,5 +28,5 @@ jobs:
         run: uv sync --dev
 
       - name: Run ty check
-        run: uvx ty check --exclude *.py
+        run: uvx ty check --exclude \*.py
 
