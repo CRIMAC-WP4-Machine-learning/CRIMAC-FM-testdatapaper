@@ -35,7 +35,11 @@ dev = [
 list = "crimactools.pipeline:list_datasets"
 get = "crimactools.pipeline:get_dataset"
 raw2pc = "crimactools.pipeline:raw2pc"
+raw2tracks = "crimactools.pipeline:raw2tracks"
 pc2png = "crimactools.pipeline:pc2png"
+pc2annotations = "crimactools.pipeline:pc2annotations"
+pc2svf = "crimactools.pipeline:pc2svf"
+pc2tsf = "crimactools.pipeline:pc2tsf"
 
 [tool.uv]
 package = true

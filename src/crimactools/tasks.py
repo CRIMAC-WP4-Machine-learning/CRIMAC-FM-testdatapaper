@@ -153,3 +153,46 @@ def pc2png_task(
     logger.info(f"#### PC2PNG for {dataset_id} ####")
     channels, con, ind = raw2meta(data["ekdir"])
     pc2png(data["gridded"], channels)
+
+
+def raw2tracks_task(
+        datadir: Path,
+        dataset_id: str,
+        dry_run: bool = False,
+):
+
+    logger.error("Not implemented yet.")
+
+    # data = folder_structure(datadir, dataset_id)
+
+def pc2annotations_task(
+        datadir: Path,
+        dataset_id: str,
+        dry_run: bool = False,
+):
+
+    logger.error("Not implemented yet.")
+
+    # data = folder_structure(datadir, dataset_id)
+
+
+def pc2tsf_task(
+        datadir: Path,
+        dataset_id: str,
+        dry_run: bool = False,
+):
+
+    logger.error("Not implemented yet.")
+
+    # data = folder_structure(datadir, dataset_id)
+
+
+def pc2svf_task(
+        datadir: Path,
+        dataset_id: str,
+        dry_run: bool = False,
+):
+
+    logger.error("Not implemented yet.")
+
+    # data = folder_structure(datadir, dataset_id)

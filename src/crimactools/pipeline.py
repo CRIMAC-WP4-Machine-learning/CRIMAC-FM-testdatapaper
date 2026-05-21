@@ -5,6 +5,9 @@ from crimactools.tasks import (
     list_datasets_task,
     get_dataset_task,
     pc2png_task,
+    raw2tracks_task,
+    pc2tsf_task,
+    pc2svf_task,
 )
 from crimactools.logging import setup_logging
 
@@ -46,7 +49,9 @@ def run_task(task, *, cruise_required=False, extra_args=None, description=None):
 
 
 def list_datasets():
-    list_datasets_task()
+    list_datasets_task(
+             description="List available data sets from NMDC repository")
+    )
 
 
 def get_dataset():
@@ -59,6 +64,26 @@ def raw2pc():
              description="Convert a dataset from EK80 RAW files to pulse compressed NetCDF")
 
 
+def raw2tracks():
+    run_task(raw2tracks_task,
+             description="Tracking using the Korona tracking module")
+
+
 def pc2png():
     run_task(pc2png_task,
              description="Generate an echogram image from pulse compressed data")
+
+
+def pc2annotations():
+    run_task(pc2png_task,
+             description="Generate track definitions from preprocess data")
+
+
+def pc2tsf():
+    run_task(pc2tsf_task,
+             description="Calculate TS(f) from track annotations and pulse compressed data")
+
+
+def pc2svf():
+    run_task(pc2svf_task,
+             description="Calculate sv(f) from pulse compressed data")
