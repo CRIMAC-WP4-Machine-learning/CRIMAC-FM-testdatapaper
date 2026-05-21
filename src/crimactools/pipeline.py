@@ -14,8 +14,9 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CRUISE_HELP = "Data set name to process (e.g., T2020001)"
 
-def run_task(task, *, cruise_required=False, extra_args=None):
-    parser = argparse.ArgumentParser()
+
+def run_task(task, *, cruise_required=False, extra_args=None, description=None):
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -43,14 +44,21 @@ def run_task(task, *, cruise_required=False, extra_args=None):
 
     task(**kwargs)
 
+
 def list_datasets():
     list_datasets_task()
 
+
 def get_dataset():
-    run_task(get_dataset_task)
+    run_task(get_dataset_task,
+             description="Download and unpack a dataset from the NMDC repository")
+
 
 def raw2pc():
-    run_task(raw2pc_task)
+    run_task(raw2pc_task,
+             description="Convert a dataset from EK80 RAW files to pulse compressed NetCDF")
+
 
 def pc2png():
-    run_task(pc2png_task)
+    run_task(pc2png_task,
+             description="Generate an echogram image from pulse compressed data")
