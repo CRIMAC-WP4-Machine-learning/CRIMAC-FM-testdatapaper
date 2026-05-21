@@ -23,3 +23,6 @@ jobs:
 
       - name: Run ty check
         run: uvx ty check
+
+      - name: Run flake8 check
+        run: uvx flake8
