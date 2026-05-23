@@ -192,45 +192,6 @@ def load_plot_ranges(csv_path):
     return ranges
 
 
-def infer_dataset_id_from_path(path_str):
-    """
-    Find T####### anywhere in the path (rightmost match).
-    """
-    if not path_str:
-        return None
-    matches = re.findall(r"T\d{7}", os.path.normpath(path_str))
-    return matches[-1] if matches else None
-
-
-# ----------------------------------------------------------------------
-
-
-def discover_channels(inputdir):
-    """
-    Fallback: discover available pc_* dirs with at least one .nc file.
-    Returns ['1', '2', ...].
-    """
-    if not os.path.isdir(inputdir):
-        return []
-    pc_dirs = []
-    for d in os.listdir(inputdir):
-        full = os.path.join(inputdir, d)
-        if os.path.isdir(full) and d.startswith("pc_"):
-            if glob.glob(os.path.join(full, "*.nc")):
-                pc_dirs.append(d)
-
-    # Sort numerically when possible
-    def pc_key(name):
-        suf = name[3:]
-        try:
-            return (0, float(suf))
-        except Exception:
-            return (1, suf)
-
-    pc_dirs.sort(key=pc_key)
-    return [d[3:] for d in pc_dirs]
-
-
 # --- Updated plotting function to collaps gaps while maintaining correct time for the data ---
 def plot_echogram_compressed_time(
     data_array, ax, x_time, y, norm, cmap_name, colorbar_label
