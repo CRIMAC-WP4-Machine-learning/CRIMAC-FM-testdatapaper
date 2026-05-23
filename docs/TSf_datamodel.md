@@ -1,3 +1,8 @@
+# Data model for TS(f)
+
+This documents the data model for target strength by frequency. This is an Xarray data structure, stored in `NetCDF` or `zarray` formats.
+
+```
 Groups: Environment, frequency_0-N
 
 Dimension:
@@ -23,3 +28,4 @@ formatLastChangedInLsssVersion:  2.3.0
 parameters:                      {'AllFrequencies': False, 'TargetExtentM...
 units:                           {'FrequencyResolution': 'Hz', 'Frequency...
 comments:                        ['The format of and definitions in this ...
+```
