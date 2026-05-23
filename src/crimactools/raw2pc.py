@@ -5,7 +5,6 @@ import os
 import logging
 from pathlib import Path
 import glob
-import re
 import csv
 import numpy as np
 import matplotlib
