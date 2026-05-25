@@ -1,3 +1,4 @@
+import sys
 import logging
 from pathlib import Path
 import yaml
@@ -28,6 +29,7 @@ def folder_structure(datadir: Path, dataset_id: str):
 def list_datasets(dataset_id: str | None = None) -> list:
     url = "http://metadata.nmdc.no/metadata-api/landingpage/f0bdafac077ee736926b57c422221f27"
     response = requests.get(url)
+    logger.info(f'Retrieved {sys.getsizeof(response)} bytes of data')
     soup = BeautifulSoup(response.content, "html.parser")
     rows = soup.find_all("tr")
     results = []
@@ -60,13 +62,13 @@ def list_datasets(dataset_id: str | None = None) -> list:
 
 def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False):
 
-    logger.info(f"#### Downloading {url} ####")
+    logger.info(f"Downloading {url} to {datadir}")
 
-    if not Path.exists(datadir):
-        logger.info(f'#### Creating data directory "{datadir}" ####')
+    if not Path(datadir).exists():
+        logger.info(f'Creating data directory "{datadir}"')
         Path(datadir).mkdir(parents=True, exist_ok=True)
     elif not Path.is_dir(datadir):
-        logger.error(f'#### Data dirctory "{datadir}" exists, but is not a directory ####')
+        logger.error(f'Data dirctory "{datadir}" exists, but is not a directory')
 
     # Get standard folder structure
     data = folder_structure(datadir, dataset_id)
