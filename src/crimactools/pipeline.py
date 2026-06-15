@@ -6,10 +6,12 @@ from crimactools.tasks import (
     get_dataset_task,
     pc2png_task,
     raw2tracks_task,
+    tracks2nc_task,
+    tracks2png_task,
     pc2tsf_task,
     pc2svf_task,
 )
-from crimactools.logging import setup_logging
+from crimactools.crimac_logging import setup_logging
 
 setup_logging(log_file="crimactools.log")
 
@@ -74,6 +76,18 @@ def raw2tracks():
              )
 
 
+def tracks2nc():
+    run_task(tracks2nc_task,
+             description="Convert a dataset from tracking output to NetCDF"
+             )
+
+
+def tracks2png():
+    run_task(tracks2png_task,
+             description="Generate an echogram image from tracking output"
+             )
+
+
 def pc2png():
     run_task(pc2png_task,
              description="Generate an echogram image from pulse compressed data"
@@ -96,3 +110,7 @@ def pc2svf():
     run_task(pc2svf_task,
              description="Calculate sv(f) from pulse compressed data"
              )
+
+
+if __name__ == '__main__':
+    tracks2png()

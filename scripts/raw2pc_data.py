@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 from pathlib import Path
-from crimactools.logging import setup_logging
+from crimactools.crimac_logging import setup_logging
 from crimactools.raw2pc import raw2meta, raw2pc, pc2png, load_plot_ranges
 import logging
 

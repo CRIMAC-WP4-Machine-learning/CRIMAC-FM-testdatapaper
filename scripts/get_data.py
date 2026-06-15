@@ -5,7 +5,7 @@ import zipfile
 from tqdm import tqdm
 import csv
 from pathlib import Path
-from crimactools.logging import setup_logging
+from crimactools.crimac_logging import setup_logging
 import logging
 
 setup_logging(log_file="crimactools.log")
