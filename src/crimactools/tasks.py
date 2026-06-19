@@ -63,7 +63,7 @@ def list_datasets(dataset_id: str | None = None) -> list:
 def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False):
 
     logger.info(f"Downloading {url} to {datadir}")
-
+    
     if not Path(datadir).exists():
         logger.info(f'Creating data directory "{datadir}"')
         Path(datadir).mkdir(parents=True, exist_ok=True)
@@ -117,7 +117,7 @@ def get_dataset_task(
         dataset_id: str | None = None,
         dry_run: bool = False,
 ):
-
+    datadir = Path(datadir)
     data = list_datasets(dataset_id)
     # Get data
     for _data in data:
