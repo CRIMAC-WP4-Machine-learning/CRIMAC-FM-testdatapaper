@@ -2,21 +2,13 @@
 
 This repository contains code to download, process and visualize the IMR test data sets.
 
-## Preparations
+The code lists avilable data sets, download them, convert from raw to pulse compressed data and plots the channels.
 
-### Software
+# Preparations
 
 It is recommended to use git for obtaining the latest updates for the code. 
 
 The code use `uv` for managing the environment. Installation methods for  `uv` is found [`here`](https://docs.astral.sh/uv/getting-started/installation/) 
-
-### Environmental variables
-
-You need to set the location of the test data as an env variable:
-
-```bash
-export CRIMACSCRATCH="/crimac-scratch"`
-```
 
 # Scripts
 
@@ -50,3 +42,14 @@ Plot pulse compressed data. Run
 uv run pc2png -h
 ```
 for instructions.
+
+# Example
+
+Replace the data set id from the list provided by the first step. The example should download the data set, convert to pulse compressed data in NetCDF format and finally produce a png file of the pulsecompressed echogram.
+
+```bash
+uv run list
+uv run get --dataset-id T2020003 --datadir /crimac-scratch/tmp/
+uv run raw2pc --dataset-id T2020003 --datadir /crimac-scratch/tmp/
+uv run pc2png --dataset-id T2020003 --datadir /crimac-scratch/tmp/
+```
