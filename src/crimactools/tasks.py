@@ -32,7 +32,8 @@ def list_datasets(dataset_id: str | None = None) -> list:
     logger.info(f'Retrieved {sys.getsizeof(response)} bytes of data')
     soup = BeautifulSoup(response.content, "html.parser")
     rows = soup.find_all("tr")
-    results = []
+    dataurls = []
+    checksums = []
 
     # List all available data sets
     for row in rows:
@@ -40,7 +41,7 @@ def list_datasets(dataset_id: str | None = None) -> list:
         if len(columns) == 3:
             if str(columns[0]) == "<td>PART</td>":
                 part = columns[0].text.strip()  # PART column
-                turl = columns[1].text.strip()  # URL column
+                turl = columns[1].text.strip()  # URL column (DOI)
                 code = columns[2].text.strip()  # T2021005 column
                 if part == "PART":
                     # Get sub page
@@ -53,7 +54,14 @@ def list_datasets(dataset_id: str | None = None) -> list:
                             spart = columns[0].text.strip()  # PART column
                             sturl = columns[1].text.strip()  # URL column
                             if spart == "GET DATA":
-                                results.append((code, turl, sturl))
+                                dataurls.append((code, turl, sturl))
+                            if spart == "VIEW RELATED INFORMATION":
+                                checksums.append((code, sturl))
+    results = []
+    for ((c1, t, dl), (c2, cs)) in zip(dataurls, checksums):
+        assert c1 == c2, "Something went horribly wront"
+        results.append((c1, t, dl, cs))
+    print(results)
     if dataset_id:
         # Filter the results based on dataset_id
         results = [r for r in results if r[0] == dataset_id]
