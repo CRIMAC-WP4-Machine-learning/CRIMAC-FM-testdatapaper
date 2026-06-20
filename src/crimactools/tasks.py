@@ -61,13 +61,29 @@ def list_datasets(dataset_id: str | None = None) -> list:
     for ((c1, t, dl), (c2, cs)) in zip(dataurls, checksums):
         assert c1 == c2, "Something went horribly wront"
         results.append((c1, t, dl, cs))
-    print(results)
     if dataset_id:
         # Filter the results based on dataset_id
         results = [r for r in results if r[0] == dataset_id]
     return results
 
 
+def get_checksum(datadir: Path, dataset_id: str, csurl: str, dry_run: bool = False):
+    logger.info(f"Downloading {csurl} to {datadir}")
+
+    if not Path(datadir).exists():
+        logger.info(f'Creating data directory "{datadir}"')
+        Path(datadir).mkdir(parents=True, exist_ok=True)
+    elif not Path.is_dir(datadir):
+        logger.error(f'Data dirctory "{datadir}" exists, but is not a directory')
+
+    cs_file = datadir / Path(dataset_id + "-sha256.txt")
+    with requests.get(csurl, stream=True) as r:
+        r.raise_for_status()
+        with open(cs_file, "wb") as f:
+            for chunk in r.iter_content(chunk_size=1024 * 1024):
+                f.write(chunk)
+        
+        
 def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False):
 
     logger.info(f"Downloading {url} to {datadir}")
@@ -131,8 +147,9 @@ def get_dataset_task(
     for _data in data:
         dataset_id = _data[0]
         url = _data[2]
+        csurl = _data[3]
         get_dataset(datadir, dataset_id, url, dry_run)
-
+        get_checksum(datadir, dataset_id, csurl, dry_run)
 
 def raw2pc_task(
         datadir: Path,
