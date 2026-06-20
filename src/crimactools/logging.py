@@ -58,7 +58,7 @@ def setup_logging(
 
     # ---- stderr handler (WARNING and above) ----
     stderr_handler = logging.StreamHandler(sys.stderr)
-    stderr_handler.setLevel(logging.WARNING)
+    stderr_handler.setLevel(logging.INFO)
     stderr_handler.setFormatter(color_formatter)
 
     # ---- rotating file handler (everything, no color) ----
@@ -71,7 +71,7 @@ def setup_logging(
     file_handler.setFormatter(plain_formatter)
 
     # ---- attach handlers ----
-    logger.addHandler(stdout_handler)
+    # logger.addHandler(stdout_handler)
     logger.addHandler(stderr_handler)
     logger.addHandler(file_handler)
 
