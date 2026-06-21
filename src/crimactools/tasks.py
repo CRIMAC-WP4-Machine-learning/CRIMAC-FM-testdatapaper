@@ -82,12 +82,12 @@ def get_checksum(datadir: Path, dataset_id: str, csurl: str, dry_run: bool = Fal
         with open(cs_file, "wb") as f:
             for chunk in r.iter_content(chunk_size=1024 * 1024):
                 f.write(chunk)
-        
-        
+
+
 def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False):
 
     logger.info(f"Downloading {url} to {datadir}")
-    
+
     if not Path(datadir).exists():
         logger.info(f'Creating data directory "{datadir}"')
         Path(datadir).mkdir(parents=True, exist_ok=True)
@@ -150,6 +150,7 @@ def get_dataset_task(
         csurl = _data[3]
         get_dataset(datadir, dataset_id, url, dry_run)
         get_checksum(datadir, dataset_id, csurl, dry_run)
+
 
 def raw2pc_task(
         datadir: Path,
