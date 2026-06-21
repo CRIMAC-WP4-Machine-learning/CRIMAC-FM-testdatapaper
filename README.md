@@ -27,6 +27,10 @@ uv run get -h
 ```
 for instructions.
 
+## Validating data downloads
+
+Each data set comes with a text file containing a list of the data set contents with SHA-256 checksums.  E.g., completeness and integrity of the T2019001 dataset can be verified with the command `sha256sum -c T2019001-sha256.txt` on Linux (or Windows with WSL), or with `certUtil -hashfile T2019001-sha256.txt sha256` on Windows.
+
 ## Preprocess test data
 
 Preprocesses the test data to pulse compressed and store as netcdf. Run
