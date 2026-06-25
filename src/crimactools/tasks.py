@@ -177,6 +177,7 @@ def verify_checksums(base_dir: Path, dataset_id: str) -> None:
         len(expected_checksums),
     )
 
+
 def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False):
 
     logger.info(f"Downloading {url} to {datadir}")
