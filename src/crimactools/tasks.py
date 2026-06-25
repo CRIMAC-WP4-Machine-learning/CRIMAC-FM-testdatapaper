@@ -240,8 +240,8 @@ def get_dataset_task(
         dataset_id = _data[0]
         url = _data[2]
         csurl = _data[3]
-        #get_checksum(datadir, dataset_id, csurl, dry_run)
-        #get_dataset(datadir, dataset_id, url, dry_run)
+        get_checksum(datadir, dataset_id, csurl, dry_run)
+        get_dataset(datadir, dataset_id, url, dry_run)
         verify_checksums(datadir, dataset_id)
 
 
