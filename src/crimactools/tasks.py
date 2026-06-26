@@ -114,6 +114,7 @@ def verify_checksums(base_dir: Path, dataset_id: str) -> None:
     expected_checksums = read_sha256_file(sha_file)
 
     errors = []
+    warnings = []
 
     expected_paths = set(expected_checksums)
 
@@ -141,8 +142,8 @@ def verify_checksums(base_dir: Path, dataset_id: str) -> None:
         errors.append(f"Missing file: {rel_path}")
 
     for rel_path in sorted(extra):
-        logger.error("File missing checksum entry: %s", rel_path)
-        errors.append(f"File missing checksum entry: {rel_path}")
+        logger.warning("File missing checksum entry: %s", rel_path)
+        warnings.append(f"File missing checksum entry: {rel_path}")
 
     for rel_path, expected_hash in sorted(expected_checksums.items()):
         path = base_dir / rel_path
@@ -171,11 +172,16 @@ def verify_checksums(base_dir: Path, dataset_id: str) -> None:
             f"Checksum verification failed with {len(errors)} error(s). "
             "See log for details."
         )
-
-    logger.info(
-        "Checksum verification passed (%d files verified).",
-        len(expected_checksums),
-    )
+    if warnings:
+        raise RuntimeWarning(
+            f"Checksum verification failed with {len(warnings)} warning(s). "
+            "See log for details."
+        )
+    else:
+        logger.info(
+            "Checksum verification passed (%d files verified).",
+            len(expected_checksums),
+        )
 
 
 def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False):
