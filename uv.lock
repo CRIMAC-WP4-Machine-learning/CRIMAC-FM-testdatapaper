@@ -246,7 +246,7 @@ requires-dist = [
     { name = "bs4", specifier = ">=0.0.2" },
     { name = "dask", specifier = ">=2026.1.1" },
     { name = "ektools", specifier = ">=0.1.2" },
-    { name = "koronascript", specifier = ">=0.2.1" },
+    { name = "koronascript", specifier = ">=3.0.0" },
     { name = "matplotlib", specifier = ">=3.10.8" },
     { name = "netcdf4", specifier = ">=1.7.4" },
     { name = "numpy", specifier = ">=2.4.1" },
@@ -506,11 +506,18 @@ wheels = [
 
 [[package]]
 name = "koronascript"
-version = "0.2.1"
+version = "3.0.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/1e/31/92211f02fdd22e8dc2c9ba1bd2fd1e0c2d0927ce1d7d8550852f160504bb/koronascript-0.2.1.tar.gz", hash = "sha256:39db45059a3539405bf2ceab259e960840676d9de2c2e2610e94727a75f651de", size = 9478, upload-time = "2025-08-20T11:00:26.481Z" }
+dependencies = [
+    { name = "matplotlib" },
+    { name = "netcdf4" },
+    { name = "pytest" },
+    { name = "requests" },
+    { name = "xarray" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/25/17/24e9b466cc9e471833eeccd979b05dc71c58c3c60b548493892f7e52431a/koronascript-3.0.1.tar.gz", hash = "sha256:70bc562ef8b5264e22e762895c27e68e4eb854f0b07a9f2ac7e26e1843b6b649", size = 9775, upload-time = "2026-06-26T09:53:07.854Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2c/14/6c33a369cc43bf81277e49739447e936e8425362f62c035eb60b9164820f/koronascript-0.2.1-py3-none-any.whl", hash = "sha256:1f274de14aa94a18b0935b928ed00a94687c790d62d259d39a3976cb4d76b03e", size = 10246, upload-time = "2025-08-20T11:00:25.513Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/3f/82741680c6c4dc3f28e90c282c19330e3482f32c48962ab227b85e9c7da2/koronascript-3.0.1-py3-none-any.whl", hash = "sha256:a6ce693589261088d3399505feba8f41847138e02108cb78766f6e36e7f2ccd1", size = 10447, upload-time = "2026-06-26T09:53:06.763Z" },
 ]
 
 [[package]]
