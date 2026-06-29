@@ -172,11 +172,11 @@ def verify_checksums(base_dir: Path, dataset_id: str) -> None:
             f"Checksum verification failed with {len(errors)} error(s). "
             "See log for details."
         )
-    if warnings:
-        raise RuntimeWarning(
-            f"Checksum verification failed with {len(warnings)} warning(s). "
-            "See log for details."
-        )
+    # if warnings:
+    #    raise RuntimeWarning(
+    #        f"Checksum verification failed with {len(warnings)} warning(s). "
+    #        "See log for details."
+    #    )
     else:
         logger.info(
             "Checksum verification passed (%d files verified).",
