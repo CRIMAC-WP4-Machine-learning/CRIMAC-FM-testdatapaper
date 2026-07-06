@@ -75,7 +75,9 @@ def raw2pc(inputdir: Path, outputdir: Path, channels: dict, dryrun: bool):
 
         if dryrun:
             logger.debug(ksi.write())
-        ksi.run(src=inputdir, dst=outputdir)
+        if ksi.run(src=inputdir, dst=outputdir) != 0:
+            logger.error('KoronaScript run failed.')
+            exit(-1)
 
         # Remove temporary korona files
         for f in Path(outputdir).glob("*korona.*"):

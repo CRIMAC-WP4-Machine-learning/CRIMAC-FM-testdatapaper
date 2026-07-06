@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 import yaml
 import requests
+import hashlib
 from bs4 import BeautifulSoup
 from zipfile import ZipFile
 from crimactools.raw2pc import (
@@ -32,7 +33,8 @@ def list_datasets(dataset_id: str | None = None) -> list:
     logger.info(f'Retrieved {sys.getsizeof(response)} bytes of data')
     soup = BeautifulSoup(response.content, "html.parser")
     rows = soup.find_all("tr")
-    results = []
+    dataurls = []
+    checksums = []
 
     # List all available data sets
     for row in rows:
@@ -40,7 +42,7 @@ def list_datasets(dataset_id: str | None = None) -> list:
         if len(columns) == 3:
             if str(columns[0]) == "<td>PART</td>":
                 part = columns[0].text.strip()  # PART column
-                turl = columns[1].text.strip()  # URL column
+                turl = columns[1].text.strip()  # URL column (DOI)
                 code = columns[2].text.strip()  # T2021005 column
                 if part == "PART":
                     # Get sub page
@@ -53,11 +55,133 @@ def list_datasets(dataset_id: str | None = None) -> list:
                             spart = columns[0].text.strip()  # PART column
                             sturl = columns[1].text.strip()  # URL column
                             if spart == "GET DATA":
-                                results.append((code, turl, sturl))
+                                dataurls.append((code, turl, sturl))
+                            if spart == "VIEW RELATED INFORMATION":
+                                checksums.append((code, sturl))
+    results = []
+    for ((c1, t, dl), (c2, cs)) in zip(dataurls, checksums):
+        assert c1 == c2, "Something went horribly wront"
+        results.append((c1, t, dl, cs))
     if dataset_id:
         # Filter the results based on dataset_id
         results = [r for r in results if r[0] == dataset_id]
     return results
+
+
+def get_checksum(datadir: Path, dataset_id: str, csurl: str, dry_run: bool = False):
+    logger.info(f"Downloading {csurl} to {datadir}")
+
+    if not Path(datadir).exists():
+        logger.info(f'Creating data directory "{datadir}"')
+        Path(datadir).mkdir(parents=True, exist_ok=True)
+    elif not Path.is_dir(datadir):
+        logger.error(f'Data dirctory "{datadir}" exists, but is not a directory')
+
+    cs_file = datadir / Path(dataset_id + "-sha256.txt")
+    with requests.get(csurl, stream=True) as r:
+        r.raise_for_status()
+        with open(cs_file, "wb") as f:
+            for chunk in r.iter_content(chunk_size=1024 * 1024):
+                f.write(chunk)
+
+
+def read_sha256_file(path: Path) -> dict[str, str]:
+    checksums = {}
+
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+
+            if not line:
+                continue
+
+            checksum, rel_path = line.split(maxsplit=1)
+            checksums[rel_path] = checksum
+
+    return checksums
+
+
+def sha256sum(path: Path, chunk_size: int = 1024 * 1024) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(chunk_size), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def verify_checksums(base_dir: Path, dataset_id: str) -> None:
+    sha_file = base_dir / f"{dataset_id}-sha256.txt"
+    expected_checksums = read_sha256_file(sha_file)
+
+    errors = []
+    warnings = []
+
+    expected_paths = set(expected_checksums)
+
+    if not expected_paths:
+        logger.error("No checksums found in %s", sha_file)
+        raise RuntimeError(f"No checksums found in {sha_file}")
+
+    dataset_root = base_dir / dataset_id
+
+    if not dataset_root.exists():
+        logger.error("Dataset directory not found: %s", dataset_root)
+        raise FileNotFoundError(f"Dataset directory not found: {dataset_root}")
+
+    actual_paths = {
+        str(path.relative_to(base_dir))
+        for path in dataset_root.rglob("*")
+        if path.is_file()
+    }
+
+    missing = expected_paths - actual_paths
+    extra = actual_paths - expected_paths
+
+    for rel_path in sorted(missing):
+        logger.error("Missing file: %s", rel_path)
+        errors.append(f"Missing file: {rel_path}")
+
+    for rel_path in sorted(extra):
+        logger.warning("File missing checksum entry: %s", rel_path)
+        warnings.append(f"File missing checksum entry: {rel_path}")
+
+    for rel_path, expected_hash in sorted(expected_checksums.items()):
+        path = base_dir / rel_path
+
+        if not path.exists():
+            # Already reported above
+            continue
+
+        actual_hash = sha256sum(path)
+
+        if actual_hash.lower() != expected_hash.lower():
+            logger.error(
+                "Checksum mismatch: %s\n"
+                "  Expected: %s\n"
+                "  Actual:   %s",
+                rel_path,
+                expected_hash,
+                actual_hash,
+            )
+            errors.append(f"Checksum mismatch: {rel_path}")
+        else:
+            logger.info("Checksum OK: %s", rel_path)
+
+    if errors:
+        raise RuntimeError(
+            f"Checksum verification failed with {len(errors)} error(s). "
+            "See log for details."
+        )
+    # if warnings:
+    #    raise RuntimeWarning(
+    #        f"Checksum verification failed with {len(warnings)} warning(s). "
+    #        "See log for details."
+    #    )
+    else:
+        logger.info(
+            "Checksum verification passed (%d files verified).",
+            len(expected_checksums),
+        )
 
 
 def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False):
@@ -100,7 +224,6 @@ def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False)
         # Remove zip file
         zip_file.unlink()
 
-
 # -----
 # Tasks
 # -----
@@ -117,13 +240,16 @@ def get_dataset_task(
         dataset_id: str | None = None,
         dry_run: bool = False,
 ):
-
+    datadir = Path(datadir)
     data = list_datasets(dataset_id)
     # Get data
     for _data in data:
         dataset_id = _data[0]
         url = _data[2]
+        csurl = _data[3]
+        get_checksum(datadir, dataset_id, csurl, dry_run)
         get_dataset(datadir, dataset_id, url, dry_run)
+        verify_checksums(datadir, dataset_id)
 
 
 def raw2pc_task(
@@ -156,47 +282,3 @@ def pc2png_task(
     logger.info(f"#### PC2PNG for {dataset_id} ####")
     channels, con, ind = raw2meta(data["ekdir"])
     pc2png(data["gridded"], channels)
-
-
-def raw2tracks_task(
-        datadir: Path,
-        dataset_id: str,
-        dry_run: bool = False,
-):
-
-    logger.error("Not implemented yet.")
-
-    # data = folder_structure(datadir, dataset_id)
-
-
-def pc2annotations_task(
-        datadir: Path,
-        dataset_id: str,
-        dry_run: bool = False,
-):
-
-    logger.error("Not implemented yet.")
-
-    # data = folder_structure(datadir, dataset_id)
-
-
-def pc2tsf_task(
-        datadir: Path,
-        dataset_id: str,
-        dry_run: bool = False,
-):
-
-    logger.error("Not implemented yet.")
-
-    # data = folder_structure(datadir, dataset_id)
-
-
-def pc2svf_task(
-        datadir: Path,
-        dataset_id: str,
-        dry_run: bool = False,
-):
-
-    logger.error("Not implemented yet.")
-
-    # data = folder_structure(datadir, dataset_id)
