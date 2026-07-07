@@ -10,6 +10,11 @@ It is recommended to use git for obtaining the latest updates for the code.
 
 The code use `uv` for managing the environment. Installation instructions for  `uv` is found [`here`](https://docs.astral.sh/uv/getting-started/installation/)
 
+On Linux, you need to ensure that you have NetCDF functionality installed:
+```bash
+sudo apt install netcdf-bin
+```
+
 # Scripts
 
 ## List test data
