@@ -5,6 +5,7 @@ from crimactools.tasks import (
     list_datasets_task,
     get_dataset_task,
     pc2png_task,
+    pc2annotations_task,
     raw2tracks_task,
     tracks2nc_task,
     tracks2png_task,
@@ -95,7 +96,7 @@ def pc2png():
 
 
 def pc2annotations():
-    run_task(pc2png_task,
+    run_task(pc2annotations_task,
              description="Generate track definitions from preprocess data"
              )
 

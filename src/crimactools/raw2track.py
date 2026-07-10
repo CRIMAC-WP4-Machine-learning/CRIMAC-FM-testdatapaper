@@ -41,6 +41,7 @@ def configuration(configdir):
         'PulseCompressionFilters' : None,
         'BroadbandSplitterBands' : None,
         'Towfish' : None,
+        'TrackingParams' : None,
     }
 
     if os.path.exists(os.path.join(configdir, 'categorizationBasic',  'Categorization.xml')):
@@ -121,11 +122,14 @@ def raw2track(inputdir, outputdir, channels):
  """
     
     pathConfig = configuration(outputdir)
+    if pathConfig['TrackingParams'] is None:
+        print('No TrackingParams.json file found. Exiting.')
+        return
     try:
         with open(pathConfig['TrackingParams'], 'r') as file:
             trackingParams = json.load(file)
     except Exception as e:
-        print(f'No file *TrackingParams.json* for dataset {e}')
+        print(f'Error reading TrackingParams {e}')
         return
     
     # Loop over the different ping groups
@@ -233,9 +237,9 @@ def track2nc(_inputdir, _outputdir, channels):
         raw_files = [os.path.join(inputdir, f) for f in os.listdir(inputdir) if f.endswith('.raw')]
         assert len(raw_files) > 0, f"No Korona raw files found in {inputdir}"
 
-        t_infos = []
-        t_borders = []
         for raw_file in raw_files:
+            t_infos = []
+            t_borders = []
             # The frequencies are needed to convert the channel index to frequency. Is there an easier way to read them?
             transducer_frequencies = np.array(channels[channel]['transducer_frequency'], dtype=int)
 
@@ -294,14 +298,31 @@ def track2nc(_inputdir, _outputdir, channels):
                 "ping_time").dt.cast_time_unit('ns'))
             
 
-            # Add the frequency
-            frequency_index = df_tracking_border['frequency_index'].to_numpy()
-            frequency_index = np.int8(frequency_index/frequency_index[0])
+            # Map each track's channel code to its transducer frequency by rank.
+            # The 'channel' field of the TBR0/TNF0 datagram is the channel the
+            # track was detected on, but its numeric value may not match the ping
+            # group's channel numbers (Korona may renumber channels after
+            # ChannelRemoval). We therefore map the distinct codes, in ascending
+            # order, onto this ping group's transducers, which are stored in
+            # channel order in 'transducer_frequency'.
+            transducer_freq_list = transducer_frequencies.tolist()
+            channel_codes = df_tracking_border['frequency_index'].to_numpy().tolist()
+            unique_codes = sorted(set(channel_codes))
+            if len(unique_codes) > len(transducer_freq_list):
+                raise ValueError(
+                    f"Track data for ping group '{channel}' has {len(unique_codes)} "
+                    f"distinct channel codes {unique_codes} but only "
+                    f"{len(transducer_freq_list)} transducers "
+                    f"(frequencies {transducer_freq_list})."
+                )
+            code_to_freq = {code: transducer_freq_list[rank]
+                            for rank, code in enumerate(unique_codes)}
 
-            # For some datasets the channel does not neatly conform to the frequency of the transducer. Maybe this should be read from the raw file???
             df_tracking_border = df_tracking_border.with_columns(
                 pl.Series(name='frequency',
-                          values=transducer_frequencies[frequency_index - 1]))
+                          values=[code_to_freq[c] for c in channel_codes]))
+            print(raw_file)
+            df_tracking_border = drop_range_low_varying_targets(df_tracking_border, 0.1, 5)
             # Add the number of targets in each ping
             # NB not in use, this would require ping_time as a dimension in the xarray dataset
             # df_tracking_border = df_tracking_border.with_columns(pl.len().over('ping_time').alias('single_target_count'))
@@ -331,6 +352,31 @@ def track2nc(_inputdir, _outputdir, channels):
             ds.to_netcdf(os.path.join(outputdir, save_path))
 
 
+def drop_range_low_varying_targets(df_tracking_border: pl.DataFrame, range_delta=0.05, min_length=5) -> pl.DataFrame:
+    # Drop targets that are longer than 5 pings and never varies in range
+    remove_ids = []
+    for id in df_tracking_border['single_target_identifier'].unique():
+        df_for_id = df_tracking_border.filter(df_tracking_border['single_target_identifier'] == id)
+        start_ranges = df_for_id['single_target_start_range'].to_numpy()
+        stop_ranges = df_for_id['single_target_stop_range'].to_numpy()
+        if (np.max(start_ranges) - np.min(start_ranges) < range_delta and
+                np.max(stop_ranges) - np.min(stop_ranges) < range_delta and
+                len(df_for_id) > min_length):
+            remove_ids.append(id)
+    if len(remove_ids) > 0:
+        print(f"Removing {len(remove_ids)} targets with almost constant range")
+    df_tracking_border = df_tracking_border.filter(~pl.col('single_target_identifier').is_in(remove_ids))
+    return df_tracking_border
+
+
+def _nearest_index(sorted_coord, targets):
+    """Index of the nearest value in an ascending-sorted array (vectorized)."""
+    idx = np.clip(np.searchsorted(sorted_coord, targets), 1, len(sorted_coord) - 1)
+    left, right = sorted_coord[idx - 1], sorted_coord[idx]
+    idx -= (targets - left) < (right - targets)
+    return idx
+
+
 def track2png(_pcdir, _koronadir, channels):
     # List NC files
     for channel in channels:
@@ -348,11 +394,12 @@ def track2png(_pcdir, _koronadir, channels):
             ds_track = xr.open_dataset(os.path.join(koronadir, filename.replace('.nc', '-korona.nc')))
             if ds_track['i'].shape[0] == 0:
                 print(f"No tracks found in {filename}")
+                ds_track.close()
                 continue
 
             # Assume that the group from the firs data set is similar across all nc files
-            nc_dataset = Dataset(ncfile, "r")
-            grp = sorted(list(nc_dataset.groups.keys()))
+            with Dataset(ncfile, "r") as nc_dataset:
+                grp = sorted(list(nc_dataset.groups.keys()))
             print(f"Filename: {filename}")  # Check filename
             print(f"Groups found: {grp}")  # Check what groups exist
 
@@ -363,6 +410,7 @@ def track2png(_pcdir, _koronadir, channels):
             # Skip if the file is empty (no groups other than Environment)
             if len(data) == 0:
                 print(f"Skipping {filename}: no data groups found (only Environment or no groups)")
+                ds_track.close()
                 continue
 
             # Regex to extract channel from channel_id
@@ -399,8 +447,9 @@ def track2png(_pcdir, _koronadir, channels):
                     raise ValueError(f"No pulse_compressed or sv data found in group {_data.attrs.get('channel_id', data_idx)}")
 
                 # Find valid range bins (not all NaN or zero)
+                arr = y_pc_na.values
                 valid_range_bins = ~np.all(
-                    np.isnan(y_pc_na.values) | (y_pc_na.values == 0), axis=0
+                    np.isnan(arr) | (arr == 0), axis=0
                 )
                 
                 if not np.any(valid_range_bins):
@@ -427,30 +476,48 @@ def track2png(_pcdir, _koronadir, channels):
                 # Plot the data
                 y_pc_na.plot.imshow(norm=LogNorm(), ax=axs[data_idx])
 
-            # Plot the track data
-            for i in ds_track['i']:
-                track = ds_track.sel(i=i)
+            # Plot the track data. Fill the masks with numpy instead of a
+            # per-track xarray .sel/.loc loop, which is orders of magnitude
+            # faster (no per-track coordinate alignment / index rebuilding).
+            freqs = np.asarray(frequencies)
+            t_freq = ds_track['frequency'].values
+            t_start = ds_track['single_target_start_range'].values
+            t_stop = ds_track['single_target_stop_range'].values
+            # track2nc writes ping_time as a formatted string; parse it back to
+            # datetime64 (space -> 'T' so numpy accepts the ISO 8601 form).
+            t_time = np.array(
+                [str(s).replace(' ', 'T') for s in ds_track['ping_time'].values],
+                dtype='datetime64[ns]',
+            )
 
-                start_range = track.single_target_start_range
-                stop_range = track.single_target_stop_range
-                frequency = track.frequency.values
-                frequency_idx = np.where(frequencies == frequency)
-
-                if len(frequency_idx[0]) == 0:
-                    print(f"Frequency channel {frequency} not found in gridded dataset {ncfile}")
+            freqs_done = []
+            for cropped_idx, mask_da in enumerate(track_masks_cropped):
+                # Reverse the data_idx -> cropped_idx mapping to get this mask's frequency
+                orig_idx = next(k for k, v in freq_idx_mapping.items() if v == cropped_idx)
+                # Ensures only the first frequency is plotted, even if it occurs multiple times in freqs.
+                if freqs[orig_idx] in freqs_done:
                     continue
-                frequency_idx = frequency_idx[0][0]
-                
-                # Check if this frequency index was included in cropped data
-                if frequency_idx not in freq_idx_mapping:
-                    print(f"Frequency {frequency} Hz had no valid data and was skipped")
+                freqs_done.append(freqs[orig_idx])
+                sel = t_freq == freqs[orig_idx]
+                if not sel.any():
                     continue
-                cropped_idx = freq_idx_mapping[frequency_idx]
 
-                # Convert to datetime[ns], replace Z to silence deprecation warning (time zone info)
-                ping_time = track.ping_time  # np.datetime64(track.ping_time.values.replace('Z', ''))
-                range_slice = track_masks_cropped[cropped_idx].sel(range=slice(start_range, stop_range))
-                range_slice.sel(ping_time=ping_time, method='nearest')[:] = 1
+                # Fix dim order so axis 0 is ping_time, axis 1 is range. transpose
+                # returns a view, so writes via .values still land in the stored mask.
+                mask_da = mask_da.transpose('ping_time', 'range')
+                track_masks_cropped[cropped_idx] = mask_da
+                mask = mask_da.values
+                ping_coord = mask_da['ping_time'].values.astype('datetime64[ns]')
+                range_coord = mask_da['range'].values
+
+                # Nearest ping column + range-bin span for every track at once
+                cols = _nearest_index(ping_coord, t_time[sel])
+                r0 = np.searchsorted(range_coord, t_start[sel], side='left')
+                r1 = np.searchsorted(range_coord, t_stop[sel], side='right')
+                for c, a, b in zip(cols, r0, r1):
+                    mask[c, a:b] = 1
+
+
 
             # Plot contour of track mask
             for cropped_idx in range(len(data_cropped)):
@@ -466,6 +533,12 @@ def track2png(_pcdir, _koronadir, channels):
             # save figure
             _f = os.path.join(koronadir, filename.replace('.nc', f'_track.png'))
             plt.savefig(_f)
+            plt.close(fig)
+
+            # Release file handles before moving to the next file
+            for d in data:
+                d.close()
+            ds_track.close()
 
 
 
