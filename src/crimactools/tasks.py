@@ -116,7 +116,7 @@ def verify_checksums(base_dir: Path, dataset_id: str) -> None:
     errors = []
     warnings = []
 
-    expected_paths = set(expected_checksums)
+    expected_paths = set([Path(e) for e in expected_checksums])
 
     if not expected_paths:
         logger.error("No checksums found in %s", sha_file)
@@ -129,7 +129,7 @@ def verify_checksums(base_dir: Path, dataset_id: str) -> None:
         raise FileNotFoundError(f"Dataset directory not found: {dataset_root}")
 
     actual_paths = {
-        str(path.relative_to(base_dir))
+        path.relative_to(base_dir)
         for path in dataset_root.rglob("*")
         if path.is_file()
     }
