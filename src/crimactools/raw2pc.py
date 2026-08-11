@@ -252,6 +252,9 @@ def pc2png(inputdir: Path, channels: dict, dataset_range=None, debug=False):
     if dataset_range:
         logger.debug(f"Using ylim={dataset_range} (meters)")
 
+    if os.name == 'nt' and inputdir[1] != ':':
+        logger.error("Can't process '{inputdir}' without drive letter.")
+
     for name in channels:
         logger.info(f"Processing ping group pc_{name}: pc2png")
 
