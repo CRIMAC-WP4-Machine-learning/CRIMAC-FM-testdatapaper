@@ -15,6 +15,17 @@ On Linux, you need to ensure that you have NetCDF functionality installed:
 sudo apt install netcdf-bin
 ```
 
+Some of the processing modules depend on the KORONA library, shipped as part of the [LSSS acoustics analysis software](https://marec.no/downloads.htm) package.
+This should be handled automatically via the dependency on the [KoronaScript](https://github.com/CRIMAC-WP4-Machine-learning/CRIMAC-KoronaScript) library, but it is also possible to specify a separate LSSS installation to use, via the LSSS environment variable.
+E.g., you can do
+```bash
+export LSSS=/opt/lsss-3.2.0
+```
+or, in Windows PowerShell, 
+```powershell
+$env:LSSS = 'C:\Program Files\Marec\LSSS 3.2.0'
+```
+
 # Scripts
 
 ## List test data
