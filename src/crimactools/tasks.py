@@ -116,7 +116,7 @@ def verify_checksums(base_dir: Path, dataset_id: str) -> None:
     errors = []
     warnings = []
 
-    expected_paths = set(expected_checksums)
+    expected_paths = set([Path(e) for e in expected_checksums])
 
     if not expected_paths:
         logger.error("No checksums found in %s", sha_file)
@@ -129,7 +129,7 @@ def verify_checksums(base_dir: Path, dataset_id: str) -> None:
         raise FileNotFoundError(f"Dataset directory not found: {dataset_root}")
 
     actual_paths = {
-        str(path.relative_to(base_dir))
+        path.relative_to(base_dir)
         for path in dataset_root.rglob("*")
         if path.is_file()
     }
@@ -186,12 +186,12 @@ def verify_checksums(base_dir: Path, dataset_id: str) -> None:
 
 def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False):
 
-    logger.info(f"Downloading {url} to {datadir}")
+    logger.info(f'Downloading {url} to "{datadir}"')
 
     if not Path(datadir).exists():
         logger.info(f'Creating data directory "{datadir}"')
         Path(datadir).mkdir(parents=True, exist_ok=True)
-    elif not Path.is_dir(datadir):
+    elif not Path(datadir).is_dir():
         logger.error(f'Data dirctory "{datadir}" exists, but is not a directory')
 
     # Get standard folder structure

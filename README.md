@@ -62,3 +62,4 @@ uv run get --dataset-id T2020003 --datadir /tmp/crimac-scratch/
 uv run raw2pc --dataset-id T2020003 --datadir /tmp/crimac-scratch/
 uv run pc2png --dataset-id T2020003 --datadir /tmp/crimac-scratch/
 ```
+Note that a bug in the Python interface to the `netCDF4` library, it is necessary to specify the drive letter on Windows.
