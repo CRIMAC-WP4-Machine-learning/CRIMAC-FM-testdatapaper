@@ -253,7 +253,7 @@ def pc2png(inputdir: Path, channels: dict, dataset_range=None, debug=False):
         logger.debug(f"Using ylim={dataset_range} (meters)")
 
     if os.name == 'nt' and not inputdir.drive:
-        logger.error("Can't process '{inputdir}' without drive letter.")
+        logger.error(f"Can't process '{inputdir}' without drive letter.")
         return
 
     for name in channels:
