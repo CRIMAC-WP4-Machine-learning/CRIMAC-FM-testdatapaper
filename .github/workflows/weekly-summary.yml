@@ -1,0 +1,26 @@
+name: Weekly Repo Summary
+
+on:
+  schedule:
+    # Runs every Monday at 09:00 UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch: # Allows you to trigger it manually anytime
+
+jobs:
+  generate-summary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetches all history so git log works
+
+      - name: Generate Weekly Changelog
+        run: |
+          echo "## 🚀 Weekly Repository Summary" >> $GITHUB_STEP_SUMMARY
+          echo "### 🗓️ Period: $(date -d '7 days ago' '+%Y-%m-%d') to $(date '+%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 📝 Recent Commits:" >> $GITHUB_STEP_SUMMARY
+          
+          # Get commits from the last 7 days and format as a markdown list
+          git log --since="7 days ago" --oneline --pretty=format:"* %h - %s (%an)" >> $GITHUB_STEP_SUMMARY || echo "* No commits found." >> $GITHUB_STEP_SUMMARY
