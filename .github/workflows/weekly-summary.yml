@@ -23,5 +23,5 @@ jobs:
           echo "#### 📝 Recent Commits:" >> $GITHUB_STEP_SUMMARY
           
           # Get commits from the last 7 days and format as a markdown list
-          # git log --since="7 days ago" --oneline --pretty=format:"* (%an) %h - %s" >> $GITHUB_STEP_SUMMARY || echo "* No commits found." >> $GITHUB_STEP_SUMMARY
-          git log --since "7 days ago" --graph --abbrev-commit --decorate --format=format:'%C(yellow)%an%C(reset) - %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(reset)%C(auto)%d%C(reset)'  >> $GITHUB_STEP_SUMMARY
+          git log --since "14 days ago" --graph --abbrev-commit --decorate --format=format:'%C(yellow)%an%C(reset) - %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(reset)%C(auto)%d%C(reset)'  >> $GITHUB_STEP_SUMMARY || echo "* No commits found." >> $GITHUB_STEP_SUMMARY
+
