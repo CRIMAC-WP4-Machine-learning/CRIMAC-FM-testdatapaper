@@ -111,7 +111,3 @@ def pc2svf():
     run_task(pc2svf_task,
              description="Calculate sv(f) from pulse compressed data"
              )
-
-
-if __name__ == '__main__':
-    tracks2png()
