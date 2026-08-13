@@ -120,7 +120,11 @@ def raw2meta(inputdir):
     # Check if there are multiple similar frequencies
     if len(transducer_frequency) > len(set(transducer_frequency)):
         # Multiple ping id's in file
-        ping_id = [ind_par[i]["ping_id"] for i in channel_names]
+        if ind_par is None:
+            logger.error('Multiple same frequencies, but no initial parameters - panic!')
+            exit(-1)
+        else:
+            ping_id = [ind_par[i]["ping_id"] for i in channel_names]
     else:
         # Singe ping id in data
         ping_id = ["1"] * len(transducer_frequency)
