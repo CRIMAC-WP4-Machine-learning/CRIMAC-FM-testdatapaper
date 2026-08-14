@@ -18,14 +18,16 @@ from ektools.korona_parsers import SimradTrackInfoParser, SimradTrackBorderParse
 
 """
 
-This example loads testdataset as defined in testdata.csv and performs 
+This example loads testdataset as defined in testdata.csv and performs
 tracking. Datasets missing either of the files 'TransducerRanges.xml'
 or 'TrackingParameters.json' will be skipped.
 
 TransducerRanges.xml contains information on the transducers in the data.
 The path of this file is passed to Korona.
-Example: 
+Example:
 """
+
+
 def configuration(configdir):
     pathConfig: dict[str, str | None] = {
         # 'ModuleConfiguration' : None, # cds file name, attrib 'ref' points to...what?
@@ -43,8 +45,8 @@ def configuration(configdir):
         'TrackingParams' : None,
     }
 
-    if os.path.exists(os.path.join(configdir, 'categorizationBasic',  'Categorization.xml')):
-        pathConfig['Categorization'] = os.path.join(configdir, 'categorizationBasic',  'Categorization.xml')
+    if os.path.exists(os.path.join(configdir, 'categorizationBasic', 'Categorization.xml')):
+        pathConfig['Categorization'] = os.path.join(configdir, 'categorizationBasic', 'Categorization.xml')
 
     if os.path.exists(os.path.join(configdir, 'HorizontalTransducerOffsets', 'HorizontalTransducerOffsets.xml')):
         pathConfig['HorizontalTransducerOffsets'] = os.path.join(configdir, 'HorizontalTransducerOffsets', 'HorizontalTransducerOffsets.xml')
@@ -75,8 +77,8 @@ def configuration(configdir):
 
     return pathConfig
 
+
 def raw2track(inputdir, outputdir, channels):
-    
     # TransducerRanges.xml contains information on the transducers in the data.
     # Example:
     """
@@ -119,7 +121,7 @@ def raw2track(inputdir, outputdir, channels):
        </transducer>
     </corrections>
  """
-    
+
     path_config = configuration(outputdir)
     if path_config['TrackingParams'] is None:
         print('No TrackingParams.json file found. Exiting.')
@@ -130,30 +132,29 @@ def raw2track(inputdir, outputdir, channels):
     except Exception as e:
         print(f'Error reading TrackingParams {e}')
         return
-    
+
     # Loop over the different ping groups
     for channel in channels:
         print(' ')
         name = channels[channel]['channel_names']
         # just pick the first frequency in the file as the main freq
-        comment = 'Processing pc_'+channel+' consisting of '+str(name)
+        comment = 'Processing pc_' + channel + ' consisting of ' + str(name)
         print(comment)
-        
+
         _tracking_params = tracking_params[channel]
-        
+
         # Instantiate the class
-        ksi = ks.KoronaScript(Categorization = path_config['Categorization'],
-                              HorizontalTransducerOffsets = path_config['HorizontalTransducerOffsets'],
-                              VerticalTransducerOffsets = path_config['VerticalTransducerOffsets'],
-                              TransducerRanges = path_config['TransducerRanges'],
-                              Plankton = path_config['Plankton'],
-                              BroadbandNotchFilters = path_config['BroadbandNotchFilters'],
-                              PulseCompressionFilters = path_config['PulseCompressionFilters'],
-                              BroadbandSplitterBands = path_config['BroadbandSplitterBands'],
-                              Towfish = path_config['Towfish']
+        ksi = ks.KoronaScript(Categorization=path_config['Categorization'],
+                              HorizontalTransducerOffsets=path_config['HorizontalTransducerOffsets'],
+                              VerticalTransducerOffsets=path_config['VerticalTransducerOffsets'],
+                              TransducerRanges=path_config['TransducerRanges'],
+                              Plankton=path_config['Plankton'],
+                              BroadbandNotchFilters=path_config['BroadbandNotchFilters'],
+                              PulseCompressionFilters=path_config['PulseCompressionFilters'],
+                              BroadbandSplitterBands=path_config['BroadbandSplitterBands'],
+                              Towfish=path_config['Towfish']
                               )
 
-        
         # Add emptypingremoval module
         ksi.add(ksm.EmptyPingRemoval())
 
@@ -163,14 +164,15 @@ def raw2track(inputdir, outputdir, channels):
         # Remove channels not to be processed
         ksi.add(ksm.ChannelRemoval(Channels=channels[channel]['channels'],
                                    KeepSpecified='true'))
-        
+
         ksi.add(ksm.EmptyPingRemoval())
-        
+
         # Loop over channels in ping group. How can I specify the channel withoiut kHz info???
         for i, _transducer_frequency in enumerate(channels[channel]['transducer_frequency']):
             # Reduce trackingparam dict to only contain the ii-th value in each key-value pair
             reduced_tracking_params = {w: m for w, m in
-                                     zip(list(_tracking_params.keys()), list(list(zip(*list(_tracking_params.values())))[i]))}
+                                       zip(list(_tracking_params.keys()),
+                                           list(list(zip(*list(_tracking_params.values())))[i]))}
             # add tracking module
             ksi.add(ksm.Tracking(Active=reduced_tracking_params["Active"],
                                  TrackerType=reduced_tracking_params["TrackerType"],
@@ -199,9 +201,9 @@ def raw2track(inputdir, outputdir, channels):
                                  MinSampleToLengthFraction=reduced_tracking_params["MinSampleToLengthFraction"]))
         # Run the script:
         ksi.write()
-        ksi.run(src=inputdir, dst=os.path.join(outputdir, 'track_'+channel))
+        ksi.run(src=inputdir, dst=os.path.join(outputdir, 'track_' + channel))
         ksi.write()
-        print(os.path.join(outputdir, 'track_'+channel))
+        print(os.path.join(outputdir, 'track_' + channel))
 
 
 def index(f):
@@ -229,8 +231,8 @@ def index(f):
 
 def track2nc(_inputdir, _outputdir, channels):
     for channel in channels:
-        inputdir = str(os.path.join(_inputdir, 'track_'+channel))
-        outputdir = str(os.path.join(_outputdir, 'track_'+channel))
+        inputdir = str(os.path.join(_inputdir, 'track_' + channel))
+        outputdir = str(os.path.join(_outputdir, 'track_' + channel))
 
         # get raw files
         raw_files = [os.path.join(inputdir, f) for f in os.listdir(inputdir) if f.endswith('.raw')]
@@ -274,7 +276,7 @@ def track2nc(_inputdir, _outputdir, channels):
 
             # Retrieve tracking border datagrams and add to polars dataframe
             df_tracking_border = pl.DataFrame(t_borders)
-                
+
             # Retrieve tracking info datagrams and add to polars dataframe
             df_tracking_info = pl.DataFrame(t_infos)
 
@@ -292,10 +294,9 @@ def track2nc(_inputdir, _outputdir, channels):
                  "minDepth": "single_target_start_range",
                  "maxDepth": "single_target_stop_range",
                  "peakDepth": "single_target_range"})
-    
+
             df_tracking_border = df_tracking_border.with_columns(pl.col(
                 "ping_time").dt.cast_time_unit('ns'))
-            
 
             # Map each track's channel code to its transducer frequency by rank.
             # The 'channel' field of the TBR0/TNF0 datagram is the channel the
@@ -345,7 +346,7 @@ def track2nc(_inputdir, _outputdir, channels):
                 },
                 coords={"i": (['i'], np.arange(len(df_tracking_border)))}
             )
-            
+
             # Save xarray to netcdf
             save_path = os.path.join(outputdir, os.path.split(raw_file)[1].replace('.raw', '.nc'))
             ds.to_netcdf(os.path.join(outputdir, save_path))
@@ -379,8 +380,8 @@ def _nearest_index(sorted_coord, targets):
 def track2png(_pcdir, _koronadir, channels):
     # List NC files
     for channel in channels:
-        pcdir = str(os.path.join(_pcdir, 'pc_'+channel))
-        koronadir = str(os.path.join(_koronadir, 'track_'+channel))
+        pcdir = str(os.path.join(_pcdir, 'pc_' + channel))
+        koronadir = str(os.path.join(_koronadir, 'track_' + channel))
         ncfiles = glob.glob(os.path.join(pcdir, '*.nc'))
 
         assert len(ncfiles) > 0, f"No NetCDF files found in {pcdir}"
@@ -405,7 +406,7 @@ def track2png(_pcdir, _koronadir, channels):
             data = [xr.open_dataset(ncfile, engine='netcdf4', group=_grp)
                     for _grp in grp if not _grp == 'Environment']
             print(f"Data length: {len(data)}")  # Should match non-Environment groups
-            
+
             # Skip if the file is empty (no groups other than Environment)
             if len(data) == 0:
                 print(f"Skipping {filename}: no data groups found (only Environment or no groups)")
@@ -431,7 +432,7 @@ def track2png(_pcdir, _koronadir, channels):
             data_cropped = []
             track_masks_cropped = []
             freq_idx_mapping = {}  # Maps original frequency index to cropped index
-            
+
             for data_idx, _data in enumerate(data):
                 # Handle pulse-compressed data
                 if 'pulse_compressed_re' in _data and 'pulse_compressed_im' in _data:
@@ -450,18 +451,18 @@ def track2png(_pcdir, _koronadir, channels):
                 valid_range_bins = ~np.all(
                     np.isnan(arr) | (arr == 0), axis=0
                 )
-                
+
                 if not np.any(valid_range_bins):
                     print(f"Warning: No valid data in {_data.attrs.get('channel_id', data_idx)}")
                     continue
-                
+
                 # Crop to valid ranges
                 y_pc_na_cropped = y_pc_na.isel(range=np.where(valid_range_bins)[0])
                 track_mask_cropped = track_masks[data_idx].isel(range=np.where(valid_range_bins)[0])
-                
+
                 # Store mapping from original index to cropped index
                 freq_idx_mapping[data_idx] = len(data_cropped)
-                
+
                 data_cropped.append(y_pc_na_cropped.T)
                 track_masks_cropped.append(track_mask_cropped)
 
@@ -516,8 +517,6 @@ def track2png(_pcdir, _koronadir, channels):
                 for c, a, b in zip(cols, r0, r1):
                     mask[c, a:b] = 1
 
-
-
             # Plot contour of track mask
             for cropped_idx in range(len(data_cropped)):
                 # Find the original frequency index for labeling
@@ -530,7 +529,7 @@ def track2png(_pcdir, _koronadir, channels):
                 # track_mask.plot.contour(levels=[0, 1], colors='white', alpha=1.0, linewidths=1, linestyles='solid', ax=axs[freq_idx])
 
             # save figure
-            _f = os.path.join(koronadir, filename.replace('.nc', f'_track.png'))
+            _f = os.path.join(koronadir, filename.replace('.nc', '_track.png'))
             plt.savefig(_f)
             plt.close(fig)
 
@@ -538,6 +537,3 @@ def track2png(_pcdir, _koronadir, channels):
             for d in data:
                 d.close()
             ds_track.close()
-
-
-
