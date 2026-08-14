@@ -416,7 +416,13 @@ def track2png(_pcdir, _koronadir, channels):
             # Regex to extract channel from channel_id
             # TODO better way to get channel frequency information?
             channel_ids = [d.attrs['channel_id'] for d in data]
-            frequencies = [int(re.search(r'ES(\d+)', channel_id).group(1)) * 1000 for channel_id in channel_ids]
+            frequencies = []
+            for channel_id in channel_ids:
+                match = re.search(r'ES(\d+)', str(channel_id))
+                if match:
+                    frequencies.append(int(match.group(1)) * 1000)
+                else:
+                    print(f"Warning: Could not parse channel ID '{channel_id}'")
 
             # Initialize track masks based on available data type
             track_masks = []
