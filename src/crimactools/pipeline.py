@@ -5,8 +5,11 @@ from crimactools.tasks import (
     list_datasets_task,
     get_dataset_task,
     pc2png_task,
+    raw2tracks_task,
+    tracks2nc_task,
+    tracks2png_task,
 )
-from crimactools.logging import setup_logging
+from crimactools.crimac_logging import setup_logging
 
 setup_logging(log_file="crimactools.log")
 
@@ -62,6 +65,24 @@ def get_dataset():
 def raw2pc():
     run_task(raw2pc_task,
              description="Convert a dataset from EK80 RAW files to pulse compressed NetCDF"
+             )
+
+
+def raw2tracks():
+    run_task(raw2tracks_task,
+             description="Tracking using the Korona tracking module"
+             )
+
+
+def tracks2nc():
+    run_task(tracks2nc_task,
+             description="Convert a dataset from tracking output to NetCDF"
+             )
+
+
+def tracks2png():
+    run_task(tracks2png_task,
+             description="Generate an echogram image from tracking output"
              )
 
 

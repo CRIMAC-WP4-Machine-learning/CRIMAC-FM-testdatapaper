@@ -35,6 +35,9 @@ list = "crimactools.pipeline:list_datasets"
 get = "crimactools.pipeline:get_dataset"
 raw2pc = "crimactools.pipeline:raw2pc"
 pc2png = "crimactools.pipeline:pc2png"
+raw2tracks = "crimactools.pipeline:raw2tracks"
+tracks2nc = "crimactools.pipeline:tracks2nc"
+tracks2png = "crimactools.pipeline:tracks2png"
 
 [tool.uv]
 package = true
