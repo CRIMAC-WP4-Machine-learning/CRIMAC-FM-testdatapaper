@@ -248,12 +248,12 @@ def list_datasets_task(dataset_id: str | None = None):
 
 
 def get_dataset_task(
-        datadir: str,
+        _datadir: str,
         dataset_id: str | None = None,
         dry_run: bool = False,
 ):
 
-    datadir = Path(datadir)
+    datadir = Path(_datadir)
     check_datadir(datadir)
     data = list_datasets(dataset_id)
 
@@ -268,12 +268,12 @@ def get_dataset_task(
 
 
 def raw2pc_task(
-        datadir: str,
+        _datadir: str,
         dataset_id: str,
         dry_run: bool = False,
 ):
 
-    datadir = Path(datadir)
+    datadir = Path(_datadir)
     check_datadir(datadir)
 
     logger.info(f"#### RAW2PC for {dataset_id} ####")
@@ -291,12 +291,12 @@ def raw2pc_task(
 
 
 def pc2png_task(
-        datadir: str,
+        _datadir: str,
         dataset_id: str,
         dry_run: bool = False,
 ):
 
-    datadir = Path(datadir)
+    datadir = Path(_datadir)
     check_datadir(datadir)
 
     data = folder_structure(datadir, dataset_id)
