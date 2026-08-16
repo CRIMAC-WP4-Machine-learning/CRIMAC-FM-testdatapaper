@@ -14,4 +14,3 @@ _TEST_DATA_SETS = result.stdout.strip().splitlines()[-1].split()
 def dataset_id(request):
     """Return one available test dataset."""
     return request.param
-

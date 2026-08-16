@@ -20,7 +20,8 @@ def run_task(task, *, cruise_required=False, extra_args=None, description=None):
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Run task for testing without running the Korona process.")
+        help="Run task for testing without running the Korona process.",
+    )
 
     parser.add_argument(
         "--dataset-id",
@@ -54,18 +55,20 @@ def list_datasets():
 
 
 def get_dataset():
-    run_task(get_dataset_task,
-             description="Download and unpack a dataset from the NMDC repository"
-             )
+    run_task(
+        get_dataset_task,
+        description="Download and unpack a dataset from the NMDC repository",
+    )
 
 
 def raw2pc():
-    run_task(raw2pc_task,
-             description="Convert a dataset from EK80 RAW files to pulse compressed NetCDF"
-             )
+    run_task(
+        raw2pc_task,
+        description="Convert a dataset from EK80 RAW files to pulse compressed NetCDF",
+    )
 
 
 def pc2png():
-    run_task(pc2png_task,
-             description="Generate an echogram image from pulse compressed data"
-             )
+    run_task(
+        pc2png_task, description="Generate an echogram image from pulse compressed data"
+    )

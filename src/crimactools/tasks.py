@@ -20,18 +20,13 @@ logger = logging.getLogger(__name__)
 
 
 def check_datadir(datadir: Path):
-
     if not Path(datadir).exists():
         logger.error(f'Data dirctory "{datadir}" does not exist')
-        raise RuntimeError(
-            f'Data dirctory "{datadir}" does not exist'
-        )
+        raise RuntimeError(f'Data dirctory "{datadir}" does not exist')
 
     elif not Path.is_dir(datadir):
         logger.error(f'Data dirctory "{datadir}" exists, but is not a directory')
-        raise RuntimeError(
-            f'Data dirctory "{datadir}" exists, but is not a directory'
-        )
+        raise RuntimeError(f'Data dirctory "{datadir}" exists, but is not a directory')
 
 
 def folder_structure(datadir: Path, dataset_id: str):
@@ -45,7 +40,7 @@ def folder_structure(datadir: Path, dataset_id: str):
 def list_datasets(dataset_id: str | None = None) -> list:
     url = "http://metadata.nmdc.no/metadata-api/landingpage/f0bdafac077ee736926b57c422221f27"
     response = requests.get(url)
-    logger.info(f'Retrieved {sys.getsizeof(response)} bytes of data')
+    logger.info(f"Retrieved {sys.getsizeof(response)} bytes of data")
     soup = BeautifulSoup(response.content, "html.parser")
     rows = soup.find_all("tr")
     dataurls = []
@@ -74,15 +69,19 @@ def list_datasets(dataset_id: str | None = None) -> list:
                             if spart == "VIEW RELATED INFORMATION":
                                 checksums.append((code, sturl))
     results = []
-    for ((c1, t, dl), (c2, cs)) in zip(dataurls, checksums):
+    for (c1, t, dl), (c2, cs) in zip(dataurls, checksums):
         assert c1 == c2, "Inconsistent data sets and checksum files"
         results.append((c1, t, dl, cs))
     if dataset_id:
         # Filter the results based on dataset_id
         results = [r for r in results if r[0] == dataset_id]
         if len(results) == 0:
-            logger.error(f"The data set {dataset_id} does not exist in the repository. List available data sets by running 'uv run list'")
-            raise RuntimeError(f"The data set {dataset_id} does not exist in the repository. List available data sets by running 'uv run list'")
+            logger.error(
+                f"The data set {dataset_id} does not exist in the repository. List available data sets by running 'uv run list'"
+            )
+            raise RuntimeError(
+                f"The data set {dataset_id} does not exist in the repository. List available data sets by running 'uv run list'"
+            )
 
     return results
 
@@ -142,9 +141,7 @@ def verify_checksums(base_dir: Path, dataset_id: str) -> None:
         raise FileNotFoundError(f"Dataset directory not found: {dataset_root}")
 
     actual_paths = {
-        path.relative_to(base_dir)
-        for path in dataset_root.rglob("*")
-        if path.is_file()
+        path.relative_to(base_dir) for path in dataset_root.rglob("*") if path.is_file()
     }
 
     missing = expected_paths - actual_paths
@@ -169,9 +166,7 @@ def verify_checksums(base_dir: Path, dataset_id: str) -> None:
 
         if actual_hash.lower() != expected_hash.lower():
             logger.error(
-                "Checksum mismatch: %s\n"
-                "  Expected: %s\n"
-                "  Actual:   %s",
+                "Checksum mismatch: %s\n  Expected: %s\n  Actual:   %s",
                 rel_path,
                 expected_hash,
                 actual_hash,
@@ -198,7 +193,6 @@ def verify_checksums(base_dir: Path, dataset_id: str) -> None:
 
 
 def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False):
-    
     logger.info('Checking dataset URL "%s"', url)
 
     try:
@@ -248,11 +242,10 @@ def list_datasets_task(dataset_id: str | None = None):
 
 
 def get_dataset_task(
-        _datadir: str,
-        dataset_id: str | None = None,
-        dry_run: bool = False,
+    _datadir: str,
+    dataset_id: str | None = None,
+    dry_run: bool = False,
 ):
-
     datadir = Path(_datadir)
     check_datadir(datadir)
     data = list_datasets(dataset_id)
@@ -268,11 +261,10 @@ def get_dataset_task(
 
 
 def raw2pc_task(
-        _datadir: str,
-        dataset_id: str,
-        dry_run: bool = False,
+    _datadir: str,
+    dataset_id: str,
+    dry_run: bool = False,
 ):
-
     datadir = Path(_datadir)
     check_datadir(datadir)
 
@@ -291,11 +283,10 @@ def raw2pc_task(
 
 
 def pc2png_task(
-        _datadir: str,
-        dataset_id: str,
-        dry_run: bool = False,
+    _datadir: str,
+    dataset_id: str,
+    dry_run: bool = False,
 ):
-
     datadir = Path(_datadir)
     check_datadir(datadir)
 
