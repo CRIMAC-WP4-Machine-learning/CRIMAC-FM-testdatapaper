@@ -109,11 +109,12 @@ Usual order:
 
 ## Testing
 
-Run the tests with:
+Run all tests with:
 
 ```bash
 uv run pytest
 ```
+
 
 ### Integration tests
 
@@ -125,11 +126,14 @@ The integration tests provide an end-to-end smoke test of the data processing pi
 
 The integration tests also verify that requesting a non-existing dataset returns an error.
 
-Run the integration tests with:
+Run the integration tests for all test data sets:
 
 ```bash
 uv run pytest -m integration
 ```
 
-The integration tests require network access and may take some time, as all the test datasets are downloaded and processed.
+The integration tests require network access and may approximately 3 hours, as all the test datasets are downloaded and processed. As a firste step, run instead a single integration test on one test data set:
 
+```bash
+uv run pytest "tests/integration/test_smoke.py::test_full_pipeline[T2019001]" -vv
+```

@@ -242,12 +242,12 @@ def list_datasets_task(dataset_id: str | None = None):
 
 
 def get_dataset_task(
-    _datadir: str,
+    datadir: str,
     dataset_id: str | None = None,
     dry_run: bool = False,
 ):
-    datadir = Path(_datadir)
-    check_datadir(datadir)
+    _datadir = Path(datadir)
+    check_datadir(_datadir)
     data = list_datasets(dataset_id)
 
     # Get data
@@ -255,22 +255,22 @@ def get_dataset_task(
         dataset_id = _data[0]
         url = _data[2]
         csurl = _data[3]
-        get_checksum(datadir, dataset_id, csurl, dry_run)
-        get_dataset(datadir, dataset_id, url, dry_run)
-        verify_checksums(datadir, dataset_id)
+        get_checksum(_datadir, dataset_id, csurl, dry_run)
+        get_dataset(_datadir, dataset_id, url, dry_run)
+        verify_checksums(_datadir, dataset_id)
 
 
 def raw2pc_task(
-    _datadir: str,
+    datadir: str,
     dataset_id: str,
     dry_run: bool = False,
 ):
-    datadir = Path(_datadir)
-    check_datadir(datadir)
+    _datadir = Path(datadir)
+    check_datadir(_datadir)
 
     logger.info(f"#### RAW2PC for {dataset_id} ####")
 
-    data = folder_structure(datadir, dataset_id)
+    data = folder_structure(_datadir, dataset_id)
     indir = data["ekdir"]
     outdir = data["gridded"]
     logger.info(f"Processing raw files from {indir}")
@@ -283,14 +283,14 @@ def raw2pc_task(
 
 
 def pc2png_task(
-    _datadir: str,
+    datadir: str,
     dataset_id: str,
     dry_run: bool = False,
 ):
-    datadir = Path(_datadir)
-    check_datadir(datadir)
+    _datadir = Path(datadir)
+    check_datadir(_datadir)
 
-    data = folder_structure(datadir, dataset_id)
+    data = folder_structure(_datadir, dataset_id)
     logger.info(f"#### PC2PNG for {dataset_id} ####")
     channels, con, ind = raw2meta(data["ekdir"])
     pc2png(data["gridded"], channels)
