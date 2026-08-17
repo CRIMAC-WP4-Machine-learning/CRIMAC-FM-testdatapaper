@@ -76,7 +76,7 @@ def raw2pc(inputdir: Path, outputdir: Path, channels: dict, dryrun: bool):
         if dryrun:
             logger.debug(ksi.write())
         if ksi.run(src=inputdir, dst=outputdir) != 0:
-            logger.error('KoronaScript run failed.')
+            logger.error("KoronaScript run failed.")
             exit(-1)
 
         # Remove temporary korona files
@@ -121,7 +121,9 @@ def raw2meta(inputdir):
     if len(transducer_frequency) > len(set(transducer_frequency)):
         # Multiple ping id's in file
         if ind_par is None:
-            logger.error('Multiple same frequencies, but no initial parameters - panic!')
+            logger.error(
+                "Multiple same frequencies, but no initial parameters - panic!"
+            )
             exit(-1)
         else:
             ping_id = [ind_par[i]["ping_id"] for i in channel_names]
@@ -256,7 +258,7 @@ def pc2png(inputdir: Path, channels: dict, dataset_range=None, debug=False):
     if dataset_range:
         logger.debug(f"Using ylim={dataset_range} (meters)")
 
-    if os.name == 'nt' and not inputdir.drive:
+    if os.name == "nt" and not inputdir.drive:
         logger.error(f"Can't process '{inputdir}' without drive letter.")
         return
 

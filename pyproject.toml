@@ -41,3 +41,8 @@ tracks2png = "crimactools.pipeline:tracks2png"
 
 [tool.uv]
 package = true
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: end-to-end tests requiring network access and processing",
+]

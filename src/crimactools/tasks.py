@@ -20,6 +20,16 @@ logger = logging.getLogger(__name__)
 # ---------------
 
 
+def check_datadir(datadir: Path):
+    if not Path(datadir).exists():
+        logger.error(f'Data dirctory "{datadir}" does not exist')
+        raise RuntimeError(f'Data dirctory "{datadir}" does not exist')
+
+    elif not Path.is_dir(datadir):
+        logger.error(f'Data dirctory "{datadir}" exists, but is not a directory')
+        raise RuntimeError(f'Data dirctory "{datadir}" exists, but is not a directory')
+
+
 def folder_structure(datadir: Path, dataset_id: str):
     # Standard folder structure
     data = {}
@@ -32,7 +42,7 @@ def folder_structure(datadir: Path, dataset_id: str):
 def list_datasets(dataset_id: str | None = None) -> list:
     url = "http://metadata.nmdc.no/metadata-api/landingpage/f0bdafac077ee736926b57c422221f27"
     response = requests.get(url)
-    logger.info(f'Retrieved {sys.getsizeof(response)} bytes of data')
+    logger.info(f"Retrieved {sys.getsizeof(response)} bytes of data")
     soup = BeautifulSoup(response.content, "html.parser")
     rows = soup.find_all("tr")
     dataurls = []
@@ -61,23 +71,25 @@ def list_datasets(dataset_id: str | None = None) -> list:
                             if spart == "VIEW RELATED INFORMATION":
                                 checksums.append((code, sturl))
     results = []
-    for ((c1, t, dl), (c2, cs)) in zip(dataurls, checksums):
-        assert c1 == c2, "Something went horribly wront"
+    for (c1, t, dl), (c2, cs) in zip(dataurls, checksums):
+        assert c1 == c2, "Inconsistent data sets and checksum files"
         results.append((c1, t, dl, cs))
     if dataset_id:
         # Filter the results based on dataset_id
         results = [r for r in results if r[0] == dataset_id]
+        if len(results) == 0:
+            logger.error(
+                f"The data set {dataset_id} does not exist in the repository. List available data sets by running 'uv run list'"
+            )
+            raise RuntimeError(
+                f"The data set {dataset_id} does not exist in the repository. List available data sets by running 'uv run list'"
+            )
+
     return results
 
 
 def get_checksum(datadir: Path, dataset_id: str, csurl: str, dry_run: bool = False):
     logger.info(f"Downloading {csurl} to {datadir}")
-
-    if not Path(datadir).exists():
-        logger.info(f'Creating data directory "{datadir}"')
-        Path(datadir).mkdir(parents=True, exist_ok=True)
-    elif not Path.is_dir(datadir):
-        logger.error(f'Data dirctory "{datadir}" exists, but is not a directory')
 
     cs_file = datadir / Path(dataset_id + "-sha256.txt")
     with requests.get(csurl, stream=True) as r:
@@ -131,9 +143,7 @@ def verify_checksums(base_dir: Path, dataset_id: str) -> None:
         raise FileNotFoundError(f"Dataset directory not found: {dataset_root}")
 
     actual_paths = {
-        path.relative_to(base_dir)
-        for path in dataset_root.rglob("*")
-        if path.is_file()
+        path.relative_to(base_dir) for path in dataset_root.rglob("*") if path.is_file()
     }
 
     missing = expected_paths - actual_paths
@@ -158,9 +168,7 @@ def verify_checksums(base_dir: Path, dataset_id: str) -> None:
 
         if actual_hash.lower() != expected_hash.lower():
             logger.error(
-                "Checksum mismatch: %s\n"
-                "  Expected: %s\n"
-                "  Actual:   %s",
+                "Checksum mismatch: %s\n  Expected: %s\n  Actual:   %s",
                 rel_path,
                 expected_hash,
                 actual_hash,
@@ -187,44 +195,42 @@ def verify_checksums(base_dir: Path, dataset_id: str) -> None:
 
 
 def get_dataset(datadir: Path, dataset_id: str, url: str, dry_run: bool = False):
+    logger.info('Checking dataset URL "%s"', url)
 
-    logger.info(f'Downloading {url} to "{datadir}"')
+    try:
+        response = requests.get(url, stream=True, timeout=30)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        raise RuntimeError(f'Dataset is not available at "{url}"') from e
 
-    if not Path(datadir).exists():
-        logger.info(f'Creating data directory "{datadir}"')
-        Path(datadir).mkdir(parents=True, exist_ok=True)
-    elif not Path(datadir).is_dir():
-        logger.error(f'Data dirctory "{datadir}" exists, but is not a directory')
+    with response as r:
+        logger.info('Downloading %s to "%s"', url, datadir)
 
-    # Get standard folder structure
-    data = folder_structure(datadir, dataset_id)
-    savefolder = data["ekdir"]
+        data = folder_structure(datadir, dataset_id)
+        savefolder = data["ekdir"]
 
-    if savefolder.exists() and any(savefolder.iterdir()):
-        logger.error(
-            'Save folder "%s" already exists and is not empty. Exiting.',
-            savefolder,
-        )
-        raise RuntimeError(
-            f'Save folder "{savefolder}" already exists and is not empty.'
-        )
+        if savefolder.exists() and any(savefolder.iterdir()):
+            logger.error(
+                'Save folder "%s" already exists and is not empty. Exiting.',
+                savefolder,
+            )
+            raise RuntimeError(
+                f'Save folder "{savefolder}" already exists and is not empty.'
+            )
 
-    # Store path
-    zip_file = datadir / Path(dataset_id + ".zip")
+        zip_file = datadir / f"{dataset_id}.zip"
 
-    with requests.get(url, stream=True) as r:
-        r.raise_for_status()
         with open(zip_file, "wb") as f:
             for chunk in r.iter_content(chunk_size=1024 * 1024):
                 f.write(chunk)
 
-        # Unzip file
         logger.info("Extracting %s -> %s", zip_file, datadir)
+
         with ZipFile(zip_file, "r") as zf:
             zf.extractall(datadir)
 
-        # Remove zip file
         zip_file.unlink()
+
 
 # -----
 # Tasks
@@ -238,31 +244,35 @@ def list_datasets_task(dataset_id: str | None = None):
 
 
 def get_dataset_task(
-        datadir: Path,
-        dataset_id: str | None = None,
-        dry_run: bool = False,
+    datadir: str,
+    dataset_id: str | None = None,
+    dry_run: bool = False,
 ):
-    datadir = Path(datadir)
+    _datadir = Path(datadir)
+    check_datadir(_datadir)
     data = list_datasets(dataset_id)
+
     # Get data
     for _data in data:
         dataset_id = _data[0]
         url = _data[2]
         csurl = _data[3]
-        get_checksum(datadir, dataset_id, csurl, dry_run)
-        get_dataset(datadir, dataset_id, url, dry_run)
-        verify_checksums(datadir, dataset_id)
+        get_checksum(_datadir, dataset_id, csurl, dry_run)
+        get_dataset(_datadir, dataset_id, url, dry_run)
+        verify_checksums(_datadir, dataset_id)
 
 
 def raw2pc_task(
-        datadir: Path,
-        dataset_id: str,
-        dry_run: bool = False,
+    datadir: str,
+    dataset_id: str,
+    dry_run: bool = False,
 ):
+    _datadir = Path(datadir)
+    check_datadir(_datadir)
 
     logger.info(f"#### RAW2PC for {dataset_id} ####")
 
-    data = folder_structure(datadir, dataset_id)
+    data = folder_structure(_datadir, dataset_id)
     indir = data["ekdir"]
     outdir = data["gridded"]
     logger.info(f"Processing raw files from {indir}")
@@ -275,12 +285,14 @@ def raw2pc_task(
 
 
 def pc2png_task(
-        datadir: Path,
-        dataset_id: str,
-        dry_run: bool = False,
+    datadir: str,
+    dataset_id: str,
+    dry_run: bool = False,
 ):
+    _datadir = Path(datadir)
+    check_datadir(_datadir)
 
-    data = folder_structure(datadir, dataset_id)
+    data = folder_structure(_datadir, dataset_id)
     logger.info(f"#### PC2PNG for {dataset_id} ####")
     channels, con, ind = raw2meta(data["ekdir"])
     pc2png(data["gridded"], channels)
