@@ -31,4 +31,4 @@ jobs:
       - name: Run Issue Digest Action
         uses: nus-oss/GithubDigest@master
         with:
-          timezone: "Singapore"
+          timezone: "Oslo"
