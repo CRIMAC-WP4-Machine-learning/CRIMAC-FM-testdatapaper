@@ -11,7 +11,7 @@ from datetime import datetime
 import glob
 from time import time
 import scipy.signal as signal
-from read_workfile import read_workfile
+import xml.etree.ElementTree as ET
 
 '''
 YNGVE: Added function for calculating TSf. 
@@ -25,6 +25,144 @@ Input params are dicts named 'data', 'tracks' and 'FFT_params' . The contents
 can be read from the list of variables.
 The function returns TS(f), target_ranges, target_angle_alongship, target_angle_athwartship.
 '''
+
+def read_workfile(work_file_path, channel):
+    """
+    Read workfile and return a dictionary with the following keys:
+    - 'workfile': workfile path
+    - mask
+    - threshold
+    - curveBoundary
+    Currently only supports masks and boundaries, not schools or threshold data.
+
+    returns:
+    - workfile_dict: dictionary with workfile data
+    - version: version of the workfile
+    """
+    """Read and parse .work XML file"""
+    tree = ET.parse(work_file_path)
+    root = tree.getroot()
+    
+    # Get version from regionInterpretation
+    version = root.attrib.get('version')
+    
+    # initialize variables
+    version = []
+    num_pings  = []
+    channel_id  = []
+    masking_data  = []
+    threshold_data  = []
+    layer_data  = []
+    layer_definitions = []
+
+    # Parse timeRange data
+    time_range = root.find('timeRange')
+    start_time = float(time_range.attrib.get('start'))
+    num_pings = int(time_range.attrib.get('numberOfPings'))
+    
+    # Parse masking data
+    masking_data = []
+    mask_elements = root.findall('.//mask')
+    for mask_element in mask_elements:
+        if mask_element is not None:
+            channel_id = mask_element.attrib.get('channelID')
+
+            if channel_id == channel:
+                for ping in mask_element.findall('ping'):
+                    ping_offset = int(ping.attrib.get('pingOffset'))
+                    # Split the ping values into coordinates
+                    values = [float(x) for x in ping.text.split()]
+                    masking_data.append({
+                        'pingOffset': ping_offset,
+                        'coordinates': values
+                    })
+                break
+            else:
+                channel_id = []
+                continue
+                    
+    ## Parse thresholding data
+    #thresholding = root.find('thresholding')
+    #threshold_data = {}
+    #if thresholding is not None:
+    #    # Upper threshold active
+    #    upper_active = thresholding.find('upperThresholdActive/timeRange')
+    #    threshold_data['upper_active'] = upper_active.attrib.get('value') == 'true'
+    #    
+    #    # Upper threshold value
+    #    upper_threshold = thresholding.find('upperThreshold/timeRange')
+    #    threshold_data['upper_value'] = float(upper_threshold.attrib.get('value'))
+    #    
+    #    # Lower threshold value
+    #    lower_threshold = thresholding.find('lowerThreshold/timeRange')
+    #    threshold_data['lower_value'] = float(lower_threshold.attrib.get('value'))
+    
+    # Parse layer interpretation data
+    layer_data = []
+    layer_boundaries = root.findall('.//curveBoundary')
+    
+    for boundary in layer_boundaries:
+        boundary_id = boundary.attrib.get('id')
+        start_connector = boundary.attrib.get('startConnector')
+        end_connector = boundary.attrib.get('endConnector')
+        
+        depths = boundary.find('.//depths')
+
+        if depths is not None:
+
+            depth_values = [float(x) for x in depths.text.split()]
+
+            layer_data.append({
+                'id': boundary_id,
+                'start_connector': start_connector,
+                'end_connector': end_connector,
+                'depths': depth_values
+            })
+    layer_definitions = []  
+    layers = root.findall('.//layerDefinitions/layer')
+    
+    for layer in layers:
+        layer_info = {
+            'object_number': int(layer.attrib.get('objectNumber')),
+            'visited': layer.attrib.get('hasBeenVisisted') == 'true',
+            'boundary_ids': [],
+            'boundaries': []
+        }
+        
+        boundaries = layer.findall('.//boundaries/*')
+        for boundary in boundaries:
+            boundary_info = {
+                'type': boundary.tag,
+                'id': boundary.attrib.get('id')
+            }
+            if boundary.tag == 'curveBoundary':
+                boundary_info['is_upper'] = boundary.attrib.get('isUpper')
+                boundary_info['curve_boundary_id'] = boundary.attrib.get('id')
+            layer_info['boundaries'].append(boundary_info)
+            
+        layer_definitions.append(layer_info)
+
+    # Parse track edits
+    track_edits = []
+    track_edits_element = root.find('.//trackEdits')
+    if track_edits_element is not None:
+        replaced_ids = track_edits_element.find('replacedIds')
+        if replaced_ids is not None and replaced_ids.text:
+            # Split the text into list of integers
+            track_edits = [int(x) for x in replaced_ids.text.split()]
+
+    return {
+        'version': version,
+        'start_time': np.datetime64(int(start_time*1000),'ms'),
+        'number_of_pings': num_pings,
+        'channel_id': channel_id,
+        'masking_data': masking_data,
+        #'threshold_data': threshold_data,
+        'layer_data': layer_data,
+        'layer_definitions': layer_definitions,
+        'track_edits': track_edits
+    }
+
 
 def calcFrequencyArray(delta_f, f0, f1):
     '''
