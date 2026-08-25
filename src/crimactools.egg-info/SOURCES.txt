@@ -1,0 +1,11 @@
+README.md
+pyproject.toml
+setup.cfg
+src/crimactools/__init__.py
+src/crimactools/logging.py
+src/crimactools/raw2pc.py
+src/crimactools.egg-info/PKG-INFO
+src/crimactools.egg-info/SOURCES.txt
+src/crimactools.egg-info/dependency_links.txt
+src/crimactools.egg-info/requires.txt
+src/crimactools.egg-info/top_level.txt

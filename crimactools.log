@@ -1,0 +1,181 @@
+2026-08-14 08:48:53 | DEBUG    | urllib3.connectionpool | Starting new HTTP connection (1): metadata.nmdc.no:80
+2026-08-14 08:48:53 | DEBUG    | urllib3.connectionpool | http://metadata.nmdc.no:80 "GET /metadata-api/landingpage/f0bdafac077ee736926b57c422221f27 HTTP/1.1" 200 None
+2026-08-14 08:48:53 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:48:53 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2019001 HTTP/1.1" 302 None
+2026-08-14 08:48:53 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:48:53 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/b612f8627a65edac3c409252535a2238 HTTP/1.1" 200 None
+2026-08-14 08:48:53 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:48:53 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2020001 HTTP/1.1" 302 None
+2026-08-14 08:48:53 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:48:53 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/3f8495a074505064826a83bc7837d978 HTTP/1.1" 200 None
+2026-08-14 08:48:53 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:48:54 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2020002 HTTP/1.1" 302 None
+2026-08-14 08:48:54 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:48:54 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/680f93b60c413536b2987ce6b4933e85 HTTP/1.1" 200 None
+2026-08-14 08:48:54 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:48:54 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2020003 HTTP/1.1" 302 None
+2026-08-14 08:48:54 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:48:54 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/ff547105f4e39629da0c067da82caad0 HTTP/1.1" 200 None
+2026-08-14 08:48:54 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:48:54 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2020008 HTTP/1.1" 302 None
+2026-08-14 08:48:54 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:48:54 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/1b67de8596d6e3126f117f7277ff43a6 HTTP/1.1" 200 None
+2026-08-14 08:48:54 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:48:54 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2021001 HTTP/1.1" 302 None
+2026-08-14 08:48:54 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/0ca40170ee054f9d54b0ab01db1182ab HTTP/1.1" 200 None
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2021002 HTTP/1.1" 302 None
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/bd51f50ed2c2e9ec01d195e501471a9f HTTP/1.1" 200 None
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2021003 HTTP/1.1" 302 None
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/211ec31bce100ce4878a23bf0fffde08 HTTP/1.1" 200 None
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2021004 HTTP/1.1" 302 None
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/fc1c1aebfc2ffe2efac5757a1c2d9e23 HTTP/1.1" 200 None
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2021005 HTTP/1.1" 302 None
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/9fefb66a356e459d9ddbe7a94d43bd25 HTTP/1.1" 200 None
+2026-08-14 08:48:55 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:48:56 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2022001 HTTP/1.1" 302 None
+2026-08-14 08:48:56 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:48:56 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/0fe81e511db3e1b83ee70c60ffb92b45 HTTP/1.1" 200 None
+2026-08-14 08:48:56 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:48:56 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2023001 HTTP/1.1" 302 None
+2026-08-14 08:48:56 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:48:56 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/8e64fedb0aee54b178f11714a6870802 HTTP/1.1" 200 None
+2026-08-14 08:48:56 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:48:56 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2023002 HTTP/1.1" 302 None
+2026-08-14 08:48:56 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:48:56 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/a0b214d33fd3746f7c0ab59dfc595dd2 HTTP/1.1" 200 None
+2026-08-14 08:48:56 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:48:56 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2023004 HTTP/1.1" 302 None
+2026-08-14 08:48:56 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:48:56 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/e7d421cc5f8a5bb66550e3e072c6e189 HTTP/1.1" 200 None
+2026-08-14 08:48:56 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:48:57 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2023005 HTTP/1.1" 302 None
+2026-08-14 08:48:57 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:48:57 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/05dcd45d08207a1fa6d404a7e324c09a HTTP/1.1" 200 None
+2026-08-14 08:48:57 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:48:57 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2023006 HTTP/1.1" 302 None
+2026-08-14 08:48:57 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:48:57 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/2364a1e1cedf19a908446b3e2575cda0 HTTP/1.1" 200 None
+2026-08-14 08:48:57 | ERROR    | get_data        | Save folder "C:\Users\ynboe7456\OneDrive - University of Bergen\Phd Project-UiB-36B09Y3\LSSS\Data\CRIMAC-FM-testdata" already exists. Exiting.
+2026-08-14 08:52:15 | DEBUG    | urllib3.connectionpool | Starting new HTTP connection (1): metadata.nmdc.no:80
+2026-08-14 08:52:15 | DEBUG    | urllib3.connectionpool | http://metadata.nmdc.no:80 "GET /metadata-api/landingpage/f0bdafac077ee736926b57c422221f27 HTTP/1.1" 200 None
+2026-08-14 08:52:15 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:52:15 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2019001 HTTP/1.1" 302 None
+2026-08-14 08:52:15 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:52:15 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/b612f8627a65edac3c409252535a2238 HTTP/1.1" 200 None
+2026-08-14 08:52:15 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2020001 HTTP/1.1" 302 None
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/3f8495a074505064826a83bc7837d978 HTTP/1.1" 200 None
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2020002 HTTP/1.1" 302 None
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/680f93b60c413536b2987ce6b4933e85 HTTP/1.1" 200 None
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2020003 HTTP/1.1" 302 None
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/ff547105f4e39629da0c067da82caad0 HTTP/1.1" 200 None
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2020008 HTTP/1.1" 302 None
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/1b67de8596d6e3126f117f7277ff43a6 HTTP/1.1" 200 None
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2021001 HTTP/1.1" 302 None
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/0ca40170ee054f9d54b0ab01db1182ab HTTP/1.1" 200 None
+2026-08-14 08:52:16 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2021002 HTTP/1.1" 302 None
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/bd51f50ed2c2e9ec01d195e501471a9f HTTP/1.1" 200 None
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2021003 HTTP/1.1" 302 None
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/211ec31bce100ce4878a23bf0fffde08 HTTP/1.1" 200 None
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2021004 HTTP/1.1" 302 None
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/fc1c1aebfc2ffe2efac5757a1c2d9e23 HTTP/1.1" 200 None
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2021005 HTTP/1.1" 302 None
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/9fefb66a356e459d9ddbe7a94d43bd25 HTTP/1.1" 200 None
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2022001 HTTP/1.1" 302 None
+2026-08-14 08:52:17 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/0fe81e511db3e1b83ee70c60ffb92b45 HTTP/1.1" 200 None
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2023001 HTTP/1.1" 302 None
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/8e64fedb0aee54b178f11714a6870802 HTTP/1.1" 200 None
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2023002 HTTP/1.1" 302 None
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/a0b214d33fd3746f7c0ab59dfc595dd2 HTTP/1.1" 200 None
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2023004 HTTP/1.1" 302 None
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/e7d421cc5f8a5bb66550e3e072c6e189 HTTP/1.1" 200 None
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2023005 HTTP/1.1" 302 None
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/05dcd45d08207a1fa6d404a7e324c09a HTTP/1.1" 200 None
+2026-08-14 08:52:18 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): doi.org:443
+2026-08-14 08:52:19 | DEBUG    | urllib3.connectionpool | https://doi.org:443 "GET /10.21335/NMDC-1713052835-T2023006 HTTP/1.1" 302 None
+2026-08-14 08:52:19 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): metadata.nmdc.no:443
+2026-08-14 08:52:19 | DEBUG    | urllib3.connectionpool | https://metadata.nmdc.no:443 "GET /metadata-api/landingpage/2364a1e1cedf19a908446b3e2575cda0 HTTP/1.1" 200 None
+2026-08-14 08:52:19 | INFO     | get_data        | Now retrieving: https://ftp.nmdc.no/nmdc/IMR/Echosounder/T2019001.zip
+2026-08-14 08:52:19 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): ftp.nmdc.no:443
+2026-08-14 08:52:19 | DEBUG    | urllib3.connectionpool | https://ftp.nmdc.no:443 "GET /nmdc/IMR/Echosounder/T2019001.zip HTTP/1.1" 200 1764290023
+2026-08-14 08:56:41 | INFO     | get_data        | Now retrieving: https://ftp.nmdc.no/nmdc/IMR/Echosounder/T2020001.zip
+2026-08-14 08:56:41 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): ftp.nmdc.no:443
+2026-08-14 08:56:42 | DEBUG    | urllib3.connectionpool | https://ftp.nmdc.no:443 "GET /nmdc/IMR/Echosounder/T2020001.zip HTTP/1.1" 200 1716103967
+2026-08-14 09:00:09 | INFO     | get_data        | Now retrieving: https://ftp.nmdc.no/nmdc/IMR/Echosounder/T2020002.zip
+2026-08-14 09:00:10 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): ftp.nmdc.no:443
+2026-08-14 09:00:10 | DEBUG    | urllib3.connectionpool | https://ftp.nmdc.no:443 "GET /nmdc/IMR/Echosounder/T2020002.zip HTTP/1.1" 200 1339726156
+2026-08-14 09:02:24 | INFO     | get_data        | Now retrieving: https://ftp.nmdc.no/nmdc/IMR/Echosounder/T2020003.zip
+2026-08-14 09:02:24 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): ftp.nmdc.no:443
+2026-08-14 09:02:24 | DEBUG    | urllib3.connectionpool | https://ftp.nmdc.no:443 "GET /nmdc/IMR/Echosounder/T2020003.zip HTTP/1.1" 200 334916934
+2026-08-14 09:03:10 | INFO     | get_data        | Now retrieving: https://ftp.nmdc.no/nmdc/IMR/Echosounder/T2020008.zip
+2026-08-14 09:03:10 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): ftp.nmdc.no:443
+2026-08-14 09:03:10 | DEBUG    | urllib3.connectionpool | https://ftp.nmdc.no:443 "GET /nmdc/IMR/Echosounder/T2020008.zip HTTP/1.1" 200 1177252073
+2026-08-14 09:05:23 | INFO     | get_data        | Now retrieving: https://ftp.nmdc.no/nmdc/IMR/Echosounder/T2021001.zip
+2026-08-14 09:05:23 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): ftp.nmdc.no:443
+2026-08-14 09:05:23 | DEBUG    | urllib3.connectionpool | https://ftp.nmdc.no:443 "GET /nmdc/IMR/Echosounder/T2021001.zip HTTP/1.1" 200 3349540724
+2026-08-14 09:13:03 | INFO     | get_data        | Now retrieving: https://ftp.nmdc.no/nmdc/IMR/Echosounder/T2021002.zip
+2026-08-14 09:13:04 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): ftp.nmdc.no:443
+2026-08-14 09:13:04 | DEBUG    | urllib3.connectionpool | https://ftp.nmdc.no:443 "GET /nmdc/IMR/Echosounder/T2021002.zip HTTP/1.1" 200 2600029999
+2026-08-14 09:20:10 | INFO     | get_data        | Now retrieving: https://ftp.nmdc.no/nmdc/IMR/Echosounder/T2021003.zip
+2026-08-14 09:20:11 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): ftp.nmdc.no:443
+2026-08-14 09:20:11 | DEBUG    | urllib3.connectionpool | https://ftp.nmdc.no:443 "GET /nmdc/IMR/Echosounder/T2021003.zip HTTP/1.1" 200 1676137080
+2026-08-14 09:24:58 | INFO     | get_data        | Now retrieving: https://ftp.nmdc.no/nmdc/IMR/Echosounder/T2021004.zip
+2026-08-14 09:24:58 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): ftp.nmdc.no:443
+2026-08-14 09:24:59 | DEBUG    | urllib3.connectionpool | https://ftp.nmdc.no:443 "GET /nmdc/IMR/Echosounder/T2021004.zip HTTP/1.1" 200 1674908889
+2026-08-14 09:30:00 | INFO     | get_data        | Now retrieving: https://ftp.nmdc.no/nmdc/IMR/Echosounder/T2021005.zip
+2026-08-14 09:30:01 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): ftp.nmdc.no:443
+2026-08-14 09:30:01 | DEBUG    | urllib3.connectionpool | https://ftp.nmdc.no:443 "GET /nmdc/IMR/Echosounder/T2021005.zip HTTP/1.1" 200 838310755
+2026-08-14 09:33:56 | INFO     | get_data        | Now retrieving: https://ftp.nmdc.no/nmdc/IMR/Echosounder/T2022001.zip
+2026-08-14 09:33:56 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): ftp.nmdc.no:443
+2026-08-14 09:33:56 | DEBUG    | urllib3.connectionpool | https://ftp.nmdc.no:443 "GET /nmdc/IMR/Echosounder/T2022001.zip HTTP/1.1" 200 866982936
+2026-08-14 09:37:49 | INFO     | get_data        | Now retrieving: https://ftp.nmdc.no/nmdc/IMR/Echosounder/T2023001.zip
+2026-08-14 09:37:49 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): ftp.nmdc.no:443
+2026-08-14 09:37:50 | DEBUG    | urllib3.connectionpool | https://ftp.nmdc.no:443 "GET /nmdc/IMR/Echosounder/T2023001.zip HTTP/1.1" 200 6910479199
+2026-08-14 09:50:56 | INFO     | get_data        | Now retrieving: https://ftp.nmdc.no/nmdc/IMR/Echosounder/T2023002.zip
+2026-08-14 09:50:56 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): ftp.nmdc.no:443
+2026-08-14 09:50:57 | DEBUG    | urllib3.connectionpool | https://ftp.nmdc.no:443 "GET /nmdc/IMR/Echosounder/T2023002.zip HTTP/1.1" 200 7748771125
+2026-08-14 10:20:20 | INFO     | get_data        | Now retrieving: https://ftp.nmdc.no/nmdc/IMR/Echosounder/T2023004.zip
+2026-08-14 10:20:21 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): ftp.nmdc.no:443
+2026-08-14 10:20:21 | DEBUG    | urllib3.connectionpool | https://ftp.nmdc.no:443 "GET /nmdc/IMR/Echosounder/T2023004.zip HTTP/1.1" 200 3519307270
+2026-08-14 10:35:53 | INFO     | get_data        | Now retrieving: https://ftp.nmdc.no/nmdc/IMR/Echosounder/T2023005.zip
+2026-08-14 10:35:53 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): ftp.nmdc.no:443
+2026-08-14 10:35:53 | DEBUG    | urllib3.connectionpool | https://ftp.nmdc.no:443 "GET /nmdc/IMR/Echosounder/T2023005.zip HTTP/1.1" 200 2639008797
+2026-08-14 10:48:01 | INFO     | get_data        | Now retrieving: https://ftp.nmdc.no/nmdc/IMR/Echosounder/T2023006.zip
+2026-08-14 10:48:02 | DEBUG    | urllib3.connectionpool | Starting new HTTPS connection (1): ftp.nmdc.no:443
+2026-08-14 10:48:02 | DEBUG    | urllib3.connectionpool | https://ftp.nmdc.no:443 "GET /nmdc/IMR/Echosounder/T2023006.zip HTTP/1.1" 200 852546583
