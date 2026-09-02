@@ -13,6 +13,9 @@ import re
 import polars as pl
 from netCDF4 import Dataset
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 from ektools.korona_parsers import SimradTrackInfoParser, SimradTrackBorderParser
 
@@ -78,7 +81,7 @@ def configuration(configdir):
     return pathConfig
 
 
-def raw2track(inputdir, outputdir, channels):
+def raw2track(inputdir, outputdir, channels, tracking_file):
     # TransducerRanges.xml contains information on the transducers in the data.
     # Example:
     """
@@ -124,22 +127,29 @@ def raw2track(inputdir, outputdir, channels):
 
     path_config = configuration(outputdir)
     if path_config['TrackingParams'] is None:
-        print('No TrackingParams.json file found. Exiting.')
+        logger.error('No TrackingParams.json file found. Exiting.')
         return
     try:
-        with open(path_config['TrackingParams'], 'r') as file:
-            tracking_params = json.load(file)
+        if os.path.exists(tracking_file):
+            with open(tracking_file, 'r') as file:
+                tracking_params = json.load(file)
+                # write to file for later use
+                with open(path_config['TrackingParams'], 'w') as outfile:
+                    json.dump(tracking_params, outfile)
+        else:
+            with open(path_config['TrackingParams'], 'r') as file:
+                tracking_params = json.load(file)
     except Exception as e:
-        print(f'Error reading TrackingParams {e}')
+        logger.error(f'Error reading TrackingParams {e}')
         return
 
     # Loop over the different ping groups
     for channel in channels:
-        print(' ')
+
         name = channels[channel]['channel_names']
         # just pick the first frequency in the file as the main freq
         comment = 'Processing pc_' + channel + ' consisting of ' + str(name)
-        print(comment)
+        logger.info(comment)
 
         _tracking_params = tracking_params[channel]
 
@@ -203,7 +213,7 @@ def raw2track(inputdir, outputdir, channels):
         ksi.write()
         ksi.run(src=inputdir, dst=os.path.join(outputdir, 'track_' + channel))
         ksi.write()
-        print(os.path.join(outputdir, 'track_' + channel))
+        logger.info(os.path.join(outputdir, 'track_' + channel))
 
 
 def index(f):
@@ -221,7 +231,7 @@ def index(f):
                     raise Exception('Premature EOF, truncated RAW file?')
                 v = struct.unpack('<l', mf[position + length + 4:position + length + 8])
                 t = msg.decode('latin-1')
-                if v[0] != length: print(
+                if v[0] != length: logger.warning(
                     f'Datagram at {position}: control lenght mismatch ({length} vs {v[0]}) - endianness error or corrupt file?')
                 idx.append((position, t, length, mf[position + 4:position + 4 + length]))
                 position += length + 8
@@ -321,7 +331,7 @@ def track2nc(_inputdir, _outputdir, channels):
             df_tracking_border = df_tracking_border.with_columns(
                 pl.Series(name='frequency',
                           values=[code_to_freq[c] for c in channel_codes]))
-            print(raw_file)
+            logger.info(raw_file)
             df_tracking_border = drop_range_low_varying_targets(df_tracking_border, 0.1, 5)
             # Add the number of targets in each ping
             # NB not in use, this would require ping_time as a dimension in the xarray dataset
@@ -364,7 +374,7 @@ def drop_range_low_varying_targets(df_tracking_border: pl.DataFrame, range_delta
                 len(df_for_id) > min_length):
             remove_ids.append(id)
     if len(remove_ids) > 0:
-        print(f"Removing {len(remove_ids)} targets with almost constant range")
+        logger.info(f"Removing {len(remove_ids)} targets with almost constant range")
     df_tracking_border = df_tracking_border.filter(~pl.col('single_target_identifier').is_in(remove_ids))
     return df_tracking_border
 
@@ -393,23 +403,23 @@ def track2png(_pcdir, _koronadir, channels):
             # Read track xarray
             ds_track = xr.open_dataset(os.path.join(koronadir, filename.replace('.nc', '-korona.nc')))
             if ds_track['i'].shape[0] == 0:
-                print(f"No tracks found in {filename}")
+                logger.warning(f"No tracks found in {filename}")
                 ds_track.close()
                 continue
 
             # Assume that the group from the firs data set is similar across all nc files
             with Dataset(ncfile, "r") as nc_dataset:
                 grp = sorted(list(nc_dataset.groups.keys()))
-            print(f"Filename: {filename}")  # Check filename
-            print(f"Groups found: {grp}")  # Check what groups exist
+            logger.info(f"Filename: {filename}")  # Check filename
+            logger.info(f"Groups found: {grp}")  # Check what groups exist
 
             data = [xr.open_dataset(ncfile, engine='netcdf4', group=_grp)
                     for _grp in grp if not _grp == 'Environment']
-            print(f"Data length: {len(data)}")  # Should match non-Environment groups
+            logger.info(f"Data length: {len(data)}")  # Should match non-Environment groups
 
             # Skip if the file is empty (no groups other than Environment)
             if len(data) == 0:
-                print(f"Skipping {filename}: no data groups found (only Environment or no groups)")
+                logger.info(f"Skipping {filename}: no data groups found (only Environment or no groups)")
                 ds_track.close()
                 continue
 
@@ -422,7 +432,7 @@ def track2png(_pcdir, _koronadir, channels):
                 if match:
                     frequencies.append(int(match.group(1)) * 1000)
                 else:
-                    print(f"Warning: Could not parse channel ID '{channel_id}'")
+                    logger.warning(f"Warning: Could not parse channel ID '{channel_id}'")
 
             # Initialize track masks based on available data type
             track_masks = []
@@ -459,7 +469,7 @@ def track2png(_pcdir, _koronadir, channels):
                 )
 
                 if not np.any(valid_range_bins):
-                    print(f"Warning: No valid data in {_data.attrs.get('channel_id', data_idx)}")
+                    logger.warning(f"Warning: No valid data in {_data.attrs.get('channel_id', data_idx)}")
                     continue
 
                 # Crop to valid ranges

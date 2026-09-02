@@ -290,11 +290,12 @@ def raw2tracks_task(
         datadir: Path,
         dataset_id: str,
         dry_run: bool = False,
+        tracking_file: str = None
 ):
     data = folder_structure(datadir, dataset_id)
     logger.info(f"#### RAW2TRACKS for {dataset_id} ####")
     channels, con, ind = raw2meta(data["ekdir"])
-    raw2track(data["ekdir"], data["korona"], channels)
+    raw2track(data["ekdir"], data["korona"], channels, tracking_file)
 
 
 def tracks2nc_task(
