@@ -1,4 +1,5 @@
 # this script convert the raw data to pulse compressed data
+from ektools.korona_parsers import SimradTrackInfoParser, SimradTrackBorderParser
 import KoronaScript.Modules as ksm
 import KoronaScript as ks
 import mmap
@@ -13,11 +14,12 @@ import re
 import polars as pl
 from netCDF4 import Dataset
 import json
+import yaml
+from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
 
-from ektools.korona_parsers import SimradTrackInfoParser, SimradTrackBorderParser
 
 """
 
@@ -75,10 +77,31 @@ def configuration(configdir):
     if os.path.exists(os.path.join(configdir, 'Towfish', 'Towfish.xml')):
         pathConfig['Towfish'] = os.path.join(configdir, 'Towfish', 'Towfish.xml')
 
-    if os.path.exists(os.path.join(configdir, 'TrackingParams', 'TrackingParams.json')):
-        pathConfig['TrackingParams'] = os.path.join(configdir, 'TrackingParams', 'TrackingParams.json')
+    pathConfig['TrackingParams'] = os.path.join(configdir, 'TrackingParams', 'TrackingParams.json')
 
     return pathConfig
+
+
+def parse_defaults(frequencies):
+    script_dir = Path(__file__).parent
+    defaults_file = script_dir / "defaults" / "raw2track.yaml"
+
+    with open(defaults_file, "r") as file:
+        defaults = yaml.safe_load(file)
+
+    tracking_params = {}
+    n = len(frequencies)
+    for key, value in defaults['defaults'].items():
+        tracking_params[key] = [value for _ in range(n)]
+    tracking_params['kHz'] = [str(f / 1000) for f in frequencies]
+
+    by_frequency_defaults = defaults['by_frequency']
+    for i, f in enumerate(frequencies):
+        if by_frequency_defaults[f]:
+            for key, value in by_frequency_defaults[f].items():
+                tracking_params[key][i] = value
+
+    return tracking_params
 
 
 def raw2track(inputdir, outputdir, channels, tracking_file):
@@ -126,19 +149,26 @@ def raw2track(inputdir, outputdir, channels, tracking_file):
  """
 
     path_config = configuration(outputdir)
-    if path_config['TrackingParams'] is None:
-        logger.error('No TrackingParams.json file found. Exiting.')
-        return
+
     try:
-        if os.path.exists(tracking_file):
+        if not os.path.exists(path_config['TrackingParams']):
+            os.makedirs(os.path.dirname(path_config['TrackingParams']), exist_ok=True)
+        if tracking_file is not None:
             with open(tracking_file, 'r') as file:
                 tracking_params = json.load(file)
-                # write to file for later use
-                with open(path_config['TrackingParams'], 'w') as outfile:
-                    json.dump(tracking_params, outfile)
-        else:
+        elif os.path.exists(path_config['TrackingParams']):
             with open(path_config['TrackingParams'], 'r') as file:
                 tracking_params = json.load(file)
+        else:
+            # create default tracking parameters
+            logger.warning('No TrackingParams file found, creating default parameters')
+            tracking_params = {}
+            for i, channel in channels.items():
+                channel_frequencies = channel['transducer_frequency']
+                tracking_params[i] = parse_defaults(channel_frequencies)
+        # write to file for documentation and later use
+        with open(path_config['TrackingParams'], 'w') as outfile:
+            json.dump(tracking_params, outfile, indent=4)
     except Exception as e:
         logger.error(f'Error reading TrackingParams {e}')
         return

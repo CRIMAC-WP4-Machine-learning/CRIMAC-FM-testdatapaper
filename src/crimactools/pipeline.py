@@ -70,7 +70,7 @@ def raw2pc():
 
 def raw2tracks():
     run_task(raw2tracks_task,
-             extra_args=lambda parser: parser.add_argument("--tracking_file", type=str),
+             extra_args=lambda parser: parser.add_argument("--config", type=str),
              description="Tracking using the Korona tracking module"
              )
 
@@ -91,6 +91,3 @@ def pc2png():
     run_task(pc2png_task,
              description="Generate an echogram image from pulse compressed data"
              )
-
-if __name__ == '__main__':
-    raw2tracks()
