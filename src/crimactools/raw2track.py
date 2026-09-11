@@ -15,6 +15,7 @@ import polars as pl
 from netCDF4 import Dataset
 import json
 import yaml
+import xml.etree.ElementTree as ET
 from pathlib import Path
 import logging
 
@@ -34,55 +35,15 @@ Example:
 
 
 def configuration(configdir):
-    pathConfig: dict[str, str | None] = {
-        # 'ModuleConfiguration' : None, # cds file name, attrib 'ref' points to...what?
-        #   <parameter name="ModuleConfiguration" ref="CfsDirectory">CW.cds</parameter>
-        # The following are None, or point to xml files (contents unknown)
-        'Categorization' : None,
-        'HorizontalTransducerOffsets' : None,
-        'VerticalTransducerOffsets' : None,
-        'TransducerRanges' : None,
-        'Plankton' : None,
-        'BroadbandNotchFilters' : None,
-        'PulseCompressionFilters' : None,
-        'BroadbandSplitterBands' : None,
-        'Towfish' : None,
-        'TrackingParams' : None,
+    pathConfig: dict[str, str] = {
+        'TransducerRanges' : os.path.join(configdir, 'TransducerRanges', 'TransducerRanges.xml'),
+        'TrackingParams' : os.path.join(configdir, 'TrackingParams', 'TrackingParams.json')
     }
-
-    if os.path.exists(os.path.join(configdir, 'categorizationBasic', 'Categorization.xml')):
-        pathConfig['Categorization'] = os.path.join(configdir, 'categorizationBasic', 'Categorization.xml')
-
-    if os.path.exists(os.path.join(configdir, 'HorizontalTransducerOffsets', 'HorizontalTransducerOffsets.xml')):
-        pathConfig['HorizontalTransducerOffsets'] = os.path.join(configdir, 'HorizontalTransducerOffsets', 'HorizontalTransducerOffsets.xml')
-
-    if os.path.exists(os.path.join(configdir, 'VerticalTransducerOffsets', 'VerticalTransducerOffsets.xml')):
-        pathConfig['VerticalTransducerOffsets'] = os.path.join(configdir, 'VerticalTransducerOffsets', 'VerticalTransducerOffsets.xml')
-
-    if os.path.exists(os.path.join(configdir, 'TransducerRanges', 'TransducerRanges.xml')):
-        pathConfig['TransducerRanges'] = os.path.join(configdir, 'TransducerRanges', 'TransducerRanges.xml')
-
-    if os.path.exists(os.path.join(configdir, 'Plankton', 'Plankton.xml')):
-        pathConfig['Plankton'] = os.path.join(configdir, 'Plankton', 'Plankton.xml')
-
-    if os.path.exists(os.path.join(configdir, 'BroadbandNotchFilters', 'BroadbandNotchFilters.xml')):
-        pathConfig['BroadbandNotchFilters'] = os.path.join(configdir, 'BroadbandNotchFilters', 'BroadbandNotchFilters.xml')
-
-    if os.path.exists(os.path.join(configdir, 'PulseCompressionFilters', 'PulseCompressionFilters.xml')):
-        pathConfig['PulseCompressionFilters'] = os.path.join(configdir, 'PulseCompressionFilters', 'PulseCompressionFilters.xml')
-
-    if os.path.exists(os.path.join(configdir, 'BroadbandSplitterBands', 'BroadbandSplitterBands.xml')):
-        pathConfig['BroadbandSplitterBands'] = os.path.join(configdir, 'BroadbandSplitterBands', 'BroadbandSplitterBands.xml')
-
-    if os.path.exists(os.path.join(configdir, 'Towfish', 'Towfish.xml')):
-        pathConfig['Towfish'] = os.path.join(configdir, 'Towfish', 'Towfish.xml')
-
-    pathConfig['TrackingParams'] = os.path.join(configdir, 'TrackingParams', 'TrackingParams.json')
 
     return pathConfig
 
 
-def parse_defaults(frequencies):
+def parse_default_tracking_params(frequencies):
     script_dir = Path(__file__).parent
     defaults_file = script_dir / "defaults" / "raw2track.yaml"
 
@@ -93,7 +54,7 @@ def parse_defaults(frequencies):
     n = len(frequencies)
     for key, value in defaults['defaults'].items():
         tracking_params[key] = [value for _ in range(n)]
-    tracking_params['kHz'] = [str(f / 1000) for f in frequencies]
+    tracking_params['kHz'] = [str(f // 1000) for f in frequencies]
 
     by_frequency_defaults = defaults['by_frequency']
     for i, f in enumerate(frequencies):
@@ -104,7 +65,70 @@ def parse_defaults(frequencies):
     return tracking_params
 
 
-def raw2track(inputdir, outputdir, channels, tracking_file):
+def save_tracking_params(path_config: dict[str, str], tracking_params: dict):
+    # write to file for documentation and later use
+    with open(path_config['TrackingParams'], 'w') as outfile:
+        json.dump(tracking_params, outfile, indent=4)
+
+
+def parse_default_transducer_ranges(frequencies):
+    script_dir = Path(__file__).parent
+    defaults_file = script_dir / "defaults" / "transducer_ranges.yaml"
+
+    with open(defaults_file, "r") as file:
+        defaults = yaml.safe_load(file)
+
+    transducer_ranges = {}
+    for f in frequencies:
+        f_kHz = int(f // 1000)
+        transducer_ranges[f_kHz] = defaults['defaults'].copy()
+
+    by_frequency_defaults = defaults['by_frequency']
+    for f in frequencies:
+        f_kHz = int(f // 1000)
+        if by_frequency_defaults[f]:
+            for key, value in by_frequency_defaults[f].items():
+                transducer_ranges[f_kHz][key] = value
+
+    name_mapping = {
+        'blindzone': 'BlindZone',
+        'range': 'Range',
+    }
+    # convert to expected xml-format
+    root = ET.Element('corrections', type='RANGE')
+    for f in frequencies:
+        f_kHz = int(f // 1000)
+        transducer = ET.SubElement(root, 'transducer')
+        parameters = ET.SubElement(transducer, 'parameters')
+        parameter_freq = ET.SubElement(parameters, 'parameter')
+        parameter_freq.set('name', 'Frequency')
+        parameter_freq.text = str(f_kHz)
+        for key, value in transducer_ranges[f_kHz].items():
+            parameter = ET.SubElement(parameters, 'parameter')
+            parameter.set('name', name_mapping[key])
+            parameter.text = str(value)
+
+    return root
+
+
+def union_xml_ranges(root1, root2):
+    for transducer in root2.iter('transducer'):
+        parameters = transducer.find('parameters')
+        for parameter in parameters.iter('parameter'):
+            if parameter.get('name') == 'Frequency':
+                f_kHz = int(parameter.text)
+                root1_frequencies = root1.findall('.//*[@name="Frequency"]')
+                in_root1 = False
+                for e in root1_frequencies:
+                    if e.text == str(f_kHz):
+                        in_root1 = True
+                        break
+                if not in_root1:
+                    root1.append(transducer)
+    return root1
+
+
+def raw2track(inputdir, outputdir, channels, tracking_file, transducer_ranges_file):
     # TransducerRanges.xml contains information on the transducers in the data.
     # Example:
     """
@@ -151,11 +175,33 @@ def raw2track(inputdir, outputdir, channels, tracking_file):
     path_config = configuration(outputdir)
 
     try:
+        if not os.path.exists(path_config['TransducerRanges']):
+            os.makedirs(os.path.dirname(path_config['TransducerRanges']), exist_ok=True)
+        if transducer_ranges_file is not None:
+            with open(transducer_ranges_file, 'r') as file:
+                root = ET.parse(file).getroot()
+                tree = ET.ElementTree(root)
+                tree.write(path_config['TransducerRanges'], encoding='UTF-8', xml_declaration=True)
+        elif not os.path.exists(path_config['TrackingParams']):
+            logger.warning('No TransducerRanges file found, creating default values')
+            roots = []
+            for i, channel in channels.items():
+                roots.append(parse_default_transducer_ranges(channel['transducer_frequency']))
+            root = roots[0]
+            for i in range(1, len(roots)):
+                root = union_xml_ranges(root, roots[i])
+            tree = ET.ElementTree(root)
+            tree.write(path_config['TransducerRanges'], encoding='UTF-8', xml_declaration=True)
+    except Exception as e:
+        logger.error(f'Error while parsing transducer ranges {e}')
+
+    try:
         if not os.path.exists(path_config['TrackingParams']):
             os.makedirs(os.path.dirname(path_config['TrackingParams']), exist_ok=True)
         if tracking_file is not None:
             with open(tracking_file, 'r') as file:
                 tracking_params = json.load(file)
+                save_tracking_params(path_config, tracking_params)
         elif os.path.exists(path_config['TrackingParams']):
             with open(path_config['TrackingParams'], 'r') as file:
                 tracking_params = json.load(file)
@@ -165,12 +211,10 @@ def raw2track(inputdir, outputdir, channels, tracking_file):
             tracking_params = {}
             for i, channel in channels.items():
                 channel_frequencies = channel['transducer_frequency']
-                tracking_params[i] = parse_defaults(channel_frequencies)
-        # write to file for documentation and later use
-        with open(path_config['TrackingParams'], 'w') as outfile:
-            json.dump(tracking_params, outfile, indent=4)
+                tracking_params[i] = parse_default_tracking_params(channel_frequencies)
+            save_tracking_params(path_config, tracking_params)
     except Exception as e:
-        logger.error(f'Error reading TrackingParams {e}')
+        logger.error(f'Error while parsing TrackingParams {e}')
         return
 
     # Loop over the different ping groups
@@ -184,16 +228,7 @@ def raw2track(inputdir, outputdir, channels, tracking_file):
         _tracking_params = tracking_params[channel]
 
         # Instantiate the class
-        ksi = ks.KoronaScript(Categorization=path_config['Categorization'],
-                              HorizontalTransducerOffsets=path_config['HorizontalTransducerOffsets'],
-                              VerticalTransducerOffsets=path_config['VerticalTransducerOffsets'],
-                              TransducerRanges=path_config['TransducerRanges'],
-                              Plankton=path_config['Plankton'],
-                              BroadbandNotchFilters=path_config['BroadbandNotchFilters'],
-                              PulseCompressionFilters=path_config['PulseCompressionFilters'],
-                              BroadbandSplitterBands=path_config['BroadbandSplitterBands'],
-                              Towfish=path_config['Towfish']
-                              )
+        ksi = ks.KoronaScript(TransducerRanges=path_config['TransducerRanges'])
 
         # Add emptypingremoval module
         ksi.add(ksm.EmptyPingRemoval())
@@ -214,31 +249,8 @@ def raw2track(inputdir, outputdir, channels, tracking_file):
                                        zip(list(_tracking_params.keys()),
                                            list(list(zip(*list(_tracking_params.values())))[i]))}
             # add tracking module
-            ksi.add(ksm.Tracking(Active=reduced_tracking_params["Active"],
-                                 TrackerType=reduced_tracking_params["TrackerType"],
-                                 kHz=str(_transducer_frequency // 1000),
-                                 PlatformMotionType=reduced_tracking_params["PlatformMotionType"],
-                                 MinTS=reduced_tracking_params["MinTS"],
-                                 PulseLengthDeterminationLevel=reduced_tracking_params["PulseLengthDeterminationLevel"],
-                                 MinEchoLength=reduced_tracking_params["MinEchoLength"],
-                                 MaxEchoLength=reduced_tracking_params["MaxEchoLength"],
-                                 MaxGainCompensation=reduced_tracking_params["MaxGainCompensation"],
-                                 DoPhaseDeviationCheck=reduced_tracking_params["DoPhaseDeviationCheck"],
-                                 MaxPhaseDevSteps=reduced_tracking_params["MaxPhaseDevSteps"],
-                                 MaxTS=reduced_tracking_params["MaxTS"],
-                                 MaxDepth=reduced_tracking_params["MaxDepth"],
-                                 # Must be determined per dataset
-                                 MaxAlongshipAngle=reduced_tracking_params["MaxAlongshipAngle"],
-                                 MaxAthwartshipAngle=reduced_tracking_params["MaxAthwartshipAngle"],
-                                 InitiationGateFunction=reduced_tracking_params["InitiationGateFunction"],
-                                 InitiationMinLength=reduced_tracking_params["InitiationMinLength"],
-                                 GateFunction=reduced_tracking_params["GateFunction"],
-                                 AlphaBetaEstimator=reduced_tracking_params["AlphaBetaEstimator"],
-                                 MaxMissingPings=reduced_tracking_params["MaxMissingPings"],
-                                 MaxMissingSamples=reduced_tracking_params["MaxMissingSamples"],
-                                 MaxMissingPingsFraction=reduced_tracking_params["MaxMissingPingsFraction"],
-                                 MinTrackLength=reduced_tracking_params["MinTrackLength"],
-                                 MinSampleToLengthFraction=reduced_tracking_params["MinSampleToLengthFraction"]))
+            ksi.add(ksm.Tracking(**reduced_tracking_params))
+
         # Run the script:
         ksi.write()
         ksi.run(src=inputdir, dst=os.path.join(outputdir, 'track_' + channel))

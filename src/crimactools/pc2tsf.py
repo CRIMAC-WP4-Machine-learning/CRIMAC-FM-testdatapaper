@@ -1,7 +1,6 @@
 # this script reads track definitions and estimate TSf
 import numpy as np
 import os
-import pandas as pd
 import xarray as xr
 import json
 from netCDF4 import Dataset
@@ -694,9 +693,9 @@ def filter_tracks_by_workfile(targets, workfile, indexfile, ping_times, frequenc
     target_ping_times = targets['ping_time'].values.astype('datetime64[ms]')
     single_target_ranges = targets['single_target_range'].values
     single_target_identifiers = targets['single_target_identifier'].values
-    delete_mask = np.int16(np.zeros(single_target_ranges.shape[0]))
-    layer_mask = np.int16(np.zeros(single_target_ranges.shape[0]))
-    track_deleted = np.int16(np.zeros(single_target_ranges.shape[0]))
+    delete_mask = np.zeros(single_target_ranges.shape[0], dtype=np.int16)
+    layer_mask = np.zeros(single_target_ranges.shape[0], dtype=np.int16)
+    track_deleted = np.zeros(single_target_ranges.shape[0], dtype=np.int16)
 
     for i, single_target_range in enumerate(single_target_ranges):
         # Find whether the target range is contained in masks or layers
@@ -773,13 +772,12 @@ def pc2tsf(trackdir: str, ncdir: str, indexdir: str, CTDdir: str, outputdir: str
         if targets.sizes['i'] == 0:
             print('Track file ', trackfilename, " is empty.")
             continue
+        ncfile = None
         for _ncfile in ncfiles:
             ncfilename = os.path.basename(_ncfile)[0:17]
             if ncfilename == trackfilename:
                 ncfile = _ncfile
                 break
-            else:
-                ncfile = None
         if ncfile is None:
             # print('No ncfile that matches trackfile ', trackfile, '. Skipping trackfile.')
             continue
@@ -806,7 +804,7 @@ def pc2tsf(trackdir: str, ncdir: str, indexdir: str, CTDdir: str, outputdir: str
         n_i = 0
         for i, freq in enumerate(freqs_targets):
             print("Processing channel with frequency: ", freq)
-            raw_index = np.int8(np.where(freqs_raw_pc == freq))[0][0]
+            raw_index = np.int8(np.where(freqs_raw_pc == freq)[0][0])
             raw_pc = raw_pc_all[raw_index]
 
             # Filter targets to only include current frequency:
@@ -913,31 +911,33 @@ def pc2tsf(trackdir: str, ncdir: str, indexdir: str, CTDdir: str, outputdir: str
     print(time() - tTot)
 
 
-# MAIN
-# Read metadata & env variables
-df = pd.read_csv('testdata.csv')
-crimac = str(os.getenv('CRIMACSCRATCH'))
+def main():
+    # todo: input parameters
+    datadir = r"Z:\CRIMAC\data\crimac-scratch\CRIMAC-FM-testdata\2021"
+    dataset_id = "T202100"
 
-timestart = time()
-# todo: use standard paths defined in tasks.py
-for _dataset in df['dataset']:
-    _dataset = str(_dataset)
-    inputdirPC = os.path.join(crimac,
-                              _dataset, 'ACOUSTIC',
+    # MAIN
+    # Read metadata & env variables
+    # crimac = str(os.getenv('CRIMACSCRATCH'))
+
+    timestart = time()
+
+    inputdirPC = os.path.join(datadir,
+                              dataset_id, 'ACOUSTIC',
                               'GRIDDED')
     inputdirIndex = os.path.join(inputdirPC, 'index')
-    inputdirTracks = os.path.join(crimac,
-                                  _dataset, 'ACOUSTIC',
+    inputdirTracks = os.path.join(datadir,
+                                  dataset_id, 'ACOUSTIC',
                                   'LSSS', 'KORONA')
-    inputdirCTD = os.path.join(crimac,
-                               _dataset, 'PHYSICS',
+    inputdirCTD = os.path.join(datadir,
+                               dataset_id, 'PHYSICS',
                                'CTD')
-    inputdirWork = os.path.join(crimac,
-                                _dataset, 'ACOUSTIC',
+    inputdirWork = os.path.join(datadir,
+                                dataset_id, 'ACOUSTIC',
                                 'LSSS', 'Work')
-    outputdir = os.path.join(crimac,
-                             _dataset, 'ACOUSTIC', 'TSF')
-    inputFFTdir = os.path.join('Config', _dataset)
+    outputdir = os.path.join(datadir,
+                             dataset_id, 'ACOUSTIC', 'TSF')
+    inputFFTdir = os.path.join('Config', dataset_id)
 
     if os.path.exists(inputdirPC) and os.path.exists(inputdirTracks):
         # Get list of track directories
@@ -960,7 +960,7 @@ for _dataset in df['dataset']:
 
             # Add reading of FFT parameters from file?
             print('***************************************************')
-            print('*****************' + _dataset + '**************************')
+            print('*****************' + dataset_id + '**************************')
             print('*****************' + dirPC + '****************************')
             print(' ')
             print(inputdirPC)
@@ -973,4 +973,8 @@ for _dataset in df['dataset']:
             print(' ')
             print(' ')
 
-print(' Total time: ', time() - timestart)
+    print(' Total time: ', time() - timestart)
+
+
+if __name__ == '__main__':
+    main()
