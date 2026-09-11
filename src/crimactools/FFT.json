@@ -1,0 +1,24 @@
+{
+    "38000": {
+                "FFTbefore":0.5, 
+                "FFTafter":0.5               
+            },
+    "70000": {
+                "FFTbefore":0.5, 
+                "FFTafter":0.5
+            },
+    "120000": {
+                "FFTbefore":0.5, 
+                "FFTafter":0.5
+            },
+    "200000": {
+                "FFTbefore":0.5, 
+                "FFTafter":0.5
+            },
+    "333000": {
+                "FFTbefore":0.5, 
+                "FFTafter":0.5
+            },
+    "delta_frequency": 100
+
+}
