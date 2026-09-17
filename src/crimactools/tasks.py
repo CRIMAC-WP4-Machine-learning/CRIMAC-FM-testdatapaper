@@ -12,6 +12,7 @@ from crimactools.raw2pc import (
     pc2png,
 )
 from crimactools.raw2track import raw2track, track2nc, track2png
+from crimactools.pc2tsf import pc2tsf
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,9 @@ def folder_structure(datadir: Path, dataset_id: str):
     data = {}
     data["ekdir"] = datadir / Path(dataset_id) / Path("ACOUSTIC/EK80/EK80_RAWDATA/")
     data["gridded"] = datadir / Path(dataset_id) / Path("ACOUSTIC/GRIDDED/")
+    data["lsss"] = datadir / Path(dataset_id) / Path("ACOUSTIC/LSSS/")
     data["korona"] = datadir / Path(dataset_id) / Path("ACOUSTIC/LSSS/KORONA/")
+    data["acoustic"] = datadir / Path(dataset_id) / Path("ACOUSTIC/")
     return data
 
 
@@ -319,3 +322,15 @@ def tracks2png_task(
     logger.info(f"#### TRACKS2PNG for {dataset_id} ####")
     channels, con, ind = raw2meta(data["ekdir"])
     track2png(data["gridded"], data["korona"], channels)
+
+
+def pc2tsf_task(
+        datadir: Path,
+        dataset_id: str,
+        dry_run: bool = False,
+        fft_config: str | None = None,
+):
+    data = folder_structure(datadir, dataset_id)
+    logger.info(f'#### PC2Tsf for {dataset_id} ####')
+    channels, con, ind = raw2meta(data["ekdir"])
+    pc2tsf(data["korona"], data['gridded'], data['gridded'] / Path('index'), data['acoustic'] / Path('TSF'), channels, data['lsss'] / Path('work'), fft_config)

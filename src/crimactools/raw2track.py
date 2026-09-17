@@ -194,6 +194,7 @@ def raw2track(inputdir, outputdir, channels, tracking_file, transducer_ranges_fi
             tree.write(path_config['TransducerRanges'], encoding='UTF-8', xml_declaration=True)
     except Exception as e:
         logger.error(f'Error while parsing transducer ranges {e}')
+        raise e
 
     try:
         if not os.path.exists(path_config['TrackingParams']):
@@ -215,7 +216,7 @@ def raw2track(inputdir, outputdir, channels, tracking_file, transducer_ranges_fi
             save_tracking_params(path_config, tracking_params)
     except Exception as e:
         logger.error(f'Error while parsing TrackingParams {e}')
-        return
+        raise e
 
     # Loop over the different ping groups
     for channel in channels:
