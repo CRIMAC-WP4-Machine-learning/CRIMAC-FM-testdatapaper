@@ -7,7 +7,8 @@ from crimactools.tasks import (
     pc2png_task,
     raw2tracks_task,
     tracks2nc_task,
-    tracks2png_task, pc2tsf_task,
+    tracks2png_task,
+    pc2tsf_task,
 )
 from crimactools.crimac_logging import setup_logging
 
