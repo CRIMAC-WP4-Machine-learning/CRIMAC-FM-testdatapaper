@@ -1,0 +1,13 @@
+defaults:
+  blindzone: 15
+  range: 500
+
+by_frequency:
+  38000:
+    range: 1000
+  70000:
+    range: 800
+  120000:
+    range: 600
+  200000:
+    range: 300

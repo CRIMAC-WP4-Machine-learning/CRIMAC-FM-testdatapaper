@@ -1,4 +1,5 @@
 # this script convert the raw data to pulse compressed data
+from ektools.korona_parsers import SimradTrackInfoParser, SimradTrackBorderParser
 import KoronaScript.Modules as ksm
 import KoronaScript as ks
 import mmap
@@ -13,8 +14,13 @@ import re
 import polars as pl
 from netCDF4 import Dataset
 import json
+import yaml
+import xml.etree.ElementTree as ET
+from pathlib import Path
+import logging
 
-from ektools.korona_parsers import SimradTrackInfoParser, SimradTrackBorderParser
+logger = logging.getLogger(__name__)
+
 
 """
 
@@ -29,56 +35,100 @@ Example:
 
 
 def configuration(configdir):
-    pathConfig: dict[str, str | None] = {
-        # 'ModuleConfiguration' : None, # cds file name, attrib 'ref' points to...what?
-        #   <parameter name="ModuleConfiguration" ref="CfsDirectory">CW.cds</parameter>
-        # The following are None, or point to xml files (contents unknown)
-        'Categorization' : None,
-        'HorizontalTransducerOffsets' : None,
-        'VerticalTransducerOffsets' : None,
-        'TransducerRanges' : None,
-        'Plankton' : None,
-        'BroadbandNotchFilters' : None,
-        'PulseCompressionFilters' : None,
-        'BroadbandSplitterBands' : None,
-        'Towfish' : None,
-        'TrackingParams' : None,
+    pathConfig: dict[str, str] = {
+        'TransducerRanges' : os.path.join(configdir, 'TransducerRanges', 'TransducerRanges.xml'),
+        'TrackingParams' : os.path.join(configdir, 'TrackingParams', 'TrackingParams.json')
     }
-
-    if os.path.exists(os.path.join(configdir, 'categorizationBasic', 'Categorization.xml')):
-        pathConfig['Categorization'] = os.path.join(configdir, 'categorizationBasic', 'Categorization.xml')
-
-    if os.path.exists(os.path.join(configdir, 'HorizontalTransducerOffsets', 'HorizontalTransducerOffsets.xml')):
-        pathConfig['HorizontalTransducerOffsets'] = os.path.join(configdir, 'HorizontalTransducerOffsets', 'HorizontalTransducerOffsets.xml')
-
-    if os.path.exists(os.path.join(configdir, 'VerticalTransducerOffsets', 'VerticalTransducerOffsets.xml')):
-        pathConfig['VerticalTransducerOffsets'] = os.path.join(configdir, 'VerticalTransducerOffsets', 'VerticalTransducerOffsets.xml')
-
-    if os.path.exists(os.path.join(configdir, 'TransducerRanges', 'TransducerRanges.xml')):
-        pathConfig['TransducerRanges'] = os.path.join(configdir, 'TransducerRanges', 'TransducerRanges.xml')
-
-    if os.path.exists(os.path.join(configdir, 'Plankton', 'Plankton.xml')):
-        pathConfig['Plankton'] = os.path.join(configdir, 'Plankton', 'Plankton.xml')
-
-    if os.path.exists(os.path.join(configdir, 'BroadbandNotchFilters', 'BroadbandNotchFilters.xml')):
-        pathConfig['BroadbandNotchFilters'] = os.path.join(configdir, 'BroadbandNotchFilters', 'BroadbandNotchFilters.xml')
-
-    if os.path.exists(os.path.join(configdir, 'PulseCompressionFilters', 'PulseCompressionFilters.xml')):
-        pathConfig['PulseCompressionFilters'] = os.path.join(configdir, 'PulseCompressionFilters', 'PulseCompressionFilters.xml')
-
-    if os.path.exists(os.path.join(configdir, 'BroadbandSplitterBands', 'BroadbandSplitterBands.xml')):
-        pathConfig['BroadbandSplitterBands'] = os.path.join(configdir, 'BroadbandSplitterBands', 'BroadbandSplitterBands.xml')
-
-    if os.path.exists(os.path.join(configdir, 'Towfish', 'Towfish.xml')):
-        pathConfig['Towfish'] = os.path.join(configdir, 'Towfish', 'Towfish.xml')
-
-    if os.path.exists(os.path.join(configdir, 'TrackingParams', 'TrackingParams.json')):
-        pathConfig['TrackingParams'] = os.path.join(configdir, 'TrackingParams', 'TrackingParams.json')
 
     return pathConfig
 
 
-def raw2track(inputdir, outputdir, channels):
+def parse_default_tracking_params(frequencies):
+    script_dir = Path(__file__).parent
+    defaults_file = script_dir / "defaults" / "raw2track.yaml"
+
+    with open(defaults_file, "r") as file:
+        defaults = yaml.safe_load(file)
+
+    tracking_params = {}
+    n = len(frequencies)
+    for key, value in defaults['defaults'].items():
+        tracking_params[key] = [value for _ in range(n)]
+    tracking_params['kHz'] = [str(f // 1000) for f in frequencies]
+
+    by_frequency_defaults = defaults['by_frequency']
+    for i, f in enumerate(frequencies):
+        if by_frequency_defaults[f]:
+            for key, value in by_frequency_defaults[f].items():
+                tracking_params[key][i] = value
+
+    return tracking_params
+
+
+def save_tracking_params(path_config: dict[str, str], tracking_params: dict):
+    # write to file for documentation and later use
+    with open(path_config['TrackingParams'], 'w') as outfile:
+        json.dump(tracking_params, outfile, indent=4)
+
+
+def parse_default_transducer_ranges(frequencies):
+    script_dir = Path(__file__).parent
+    defaults_file = script_dir / "defaults" / "transducer_ranges.yaml"
+
+    with open(defaults_file, "r") as file:
+        defaults = yaml.safe_load(file)
+
+    transducer_ranges = {}
+    for f in frequencies:
+        f_kHz = int(f // 1000)
+        transducer_ranges[f_kHz] = defaults['defaults'].copy()
+
+    by_frequency_defaults = defaults['by_frequency']
+    for f in frequencies:
+        f_kHz = int(f // 1000)
+        if by_frequency_defaults[f]:
+            for key, value in by_frequency_defaults[f].items():
+                transducer_ranges[f_kHz][key] = value
+
+    name_mapping = {
+        'blindzone': 'BlindZone',
+        'range': 'Range',
+    }
+    # convert to expected xml-format
+    root = ET.Element('corrections', type='RANGE')
+    for f in frequencies:
+        f_kHz = int(f // 1000)
+        transducer = ET.SubElement(root, 'transducer')
+        parameters = ET.SubElement(transducer, 'parameters')
+        parameter_freq = ET.SubElement(parameters, 'parameter')
+        parameter_freq.set('name', 'Frequency')
+        parameter_freq.text = str(f_kHz)
+        for key, value in transducer_ranges[f_kHz].items():
+            parameter = ET.SubElement(parameters, 'parameter')
+            parameter.set('name', name_mapping[key])
+            parameter.text = str(value)
+
+    return root
+
+
+def union_xml_ranges(root1, root2):
+    for transducer in root2.iter('transducer'):
+        parameters = transducer.find('parameters')
+        for parameter in parameters.iter('parameter'):
+            if parameter.get('name') == 'Frequency':
+                f_kHz = int(parameter.text)
+                root1_frequencies = root1.findall('.//*[@name="Frequency"]')
+                in_root1 = False
+                for e in root1_frequencies:
+                    if e.text == str(f_kHz):
+                        in_root1 = True
+                        break
+                if not in_root1:
+                    root1.append(transducer)
+    return root1
+
+
+def raw2track(inputdir, outputdir, channels, tracking_file, transducer_ranges_file):
     # TransducerRanges.xml contains information on the transducers in the data.
     # Example:
     """
@@ -123,37 +173,63 @@ def raw2track(inputdir, outputdir, channels):
  """
 
     path_config = configuration(outputdir)
-    if path_config['TrackingParams'] is None:
-        print('No TrackingParams.json file found. Exiting.')
-        return
+
     try:
-        with open(path_config['TrackingParams'], 'r') as file:
-            tracking_params = json.load(file)
+        if not os.path.exists(path_config['TransducerRanges']):
+            os.makedirs(os.path.dirname(path_config['TransducerRanges']), exist_ok=True)
+        if transducer_ranges_file is not None:
+            with open(transducer_ranges_file, 'r') as file:
+                root = ET.parse(file).getroot()
+                tree = ET.ElementTree(root)
+                tree.write(path_config['TransducerRanges'], encoding='UTF-8', xml_declaration=True)
+        elif not os.path.exists(path_config['TrackingParams']):
+            logger.warning('No TransducerRanges file found, creating default values')
+            roots = []
+            for i, channel in channels.items():
+                roots.append(parse_default_transducer_ranges(channel['transducer_frequency']))
+            root = roots[0]
+            for i in range(1, len(roots)):
+                root = union_xml_ranges(root, roots[i])
+            tree = ET.ElementTree(root)
+            tree.write(path_config['TransducerRanges'], encoding='UTF-8', xml_declaration=True)
     except Exception as e:
-        print(f'Error reading TrackingParams {e}')
-        return
+        logger.error(f'Error while parsing transducer ranges {e}')
+        raise e
+
+    try:
+        if not os.path.exists(path_config['TrackingParams']):
+            os.makedirs(os.path.dirname(path_config['TrackingParams']), exist_ok=True)
+        if tracking_file is not None:
+            with open(tracking_file, 'r') as file:
+                tracking_params = json.load(file)
+                save_tracking_params(path_config, tracking_params)
+        elif os.path.exists(path_config['TrackingParams']):
+            with open(path_config['TrackingParams'], 'r') as file:
+                tracking_params = json.load(file)
+        else:
+            # create default tracking parameters
+            logger.warning('No TrackingParams file found, creating default parameters')
+            tracking_params = {}
+            for i, channel in channels.items():
+                channel_frequencies = channel['transducer_frequency']
+                tracking_params[i] = parse_default_tracking_params(channel_frequencies)
+            save_tracking_params(path_config, tracking_params)
+    except Exception as e:
+        logger.error(f'Error while parsing TrackingParams {e}')
+        raise e
 
     # Loop over the different ping groups
     for channel in channels:
-        print(' ')
+
         name = channels[channel]['channel_names']
         # just pick the first frequency in the file as the main freq
         comment = 'Processing pc_' + channel + ' consisting of ' + str(name)
-        print(comment)
+        logger.info(comment)
 
         _tracking_params = tracking_params[channel]
 
         # Instantiate the class
-        ksi = ks.KoronaScript(Categorization=path_config['Categorization'],
-                              HorizontalTransducerOffsets=path_config['HorizontalTransducerOffsets'],
-                              VerticalTransducerOffsets=path_config['VerticalTransducerOffsets'],
-                              TransducerRanges=path_config['TransducerRanges'],
-                              Plankton=path_config['Plankton'],
-                              BroadbandNotchFilters=path_config['BroadbandNotchFilters'],
-                              PulseCompressionFilters=path_config['PulseCompressionFilters'],
-                              BroadbandSplitterBands=path_config['BroadbandSplitterBands'],
-                              Towfish=path_config['Towfish']
-                              )
+        ksi = ks.KoronaScript(TransducerRanges=path_config['TransducerRanges'])
 
         # Add emptypingremoval module
         ksi.add(ksm.EmptyPingRemoval())
@@ -174,36 +250,13 @@ def raw2track(inputdir, outputdir, channels):
                                        zip(list(_tracking_params.keys()),
                                            list(list(zip(*list(_tracking_params.values())))[i]))}
             # add tracking module
-            ksi.add(ksm.Tracking(Active=reduced_tracking_params["Active"],
-                                 TrackerType=reduced_tracking_params["TrackerType"],
-                                 kHz=str(_transducer_frequency // 1000),
-                                 PlatformMotionType=reduced_tracking_params["PlatformMotionType"],
-                                 MinTS=reduced_tracking_params["MinTS"],
-                                 PulseLengthDeterminationLevel=reduced_tracking_params["PulseLengthDeterminationLevel"],
-                                 MinEchoLength=reduced_tracking_params["MinEchoLength"],
-                                 MaxEchoLength=reduced_tracking_params["MaxEchoLength"],
-                                 MaxGainCompensation=reduced_tracking_params["MaxGainCompensation"],
-                                 DoPhaseDeviationCheck=reduced_tracking_params["DoPhaseDeviationCheck"],
-                                 MaxPhaseDevSteps=reduced_tracking_params["MaxPhaseDevSteps"],
-                                 MaxTS=reduced_tracking_params["MaxTS"],
-                                 MaxDepth=reduced_tracking_params["MaxDepth"],
-                                 # Must be determined per dataset
-                                 MaxAlongshipAngle=reduced_tracking_params["MaxAlongshipAngle"],
-                                 MaxAthwartshipAngle=reduced_tracking_params["MaxAthwartshipAngle"],
-                                 InitiationGateFunction=reduced_tracking_params["InitiationGateFunction"],
-                                 InitiationMinLength=reduced_tracking_params["InitiationMinLength"],
-                                 GateFunction=reduced_tracking_params["GateFunction"],
-                                 AlphaBetaEstimator=reduced_tracking_params["AlphaBetaEstimator"],
-                                 MaxMissingPings=reduced_tracking_params["MaxMissingPings"],
-                                 MaxMissingSamples=reduced_tracking_params["MaxMissingSamples"],
-                                 MaxMissingPingsFraction=reduced_tracking_params["MaxMissingPingsFraction"],
-                                 MinTrackLength=reduced_tracking_params["MinTrackLength"],
-                                 MinSampleToLengthFraction=reduced_tracking_params["MinSampleToLengthFraction"]))
+            ksi.add(ksm.Tracking(**reduced_tracking_params))
+
         # Run the script:
         ksi.write()
         ksi.run(src=inputdir, dst=os.path.join(outputdir, 'track_' + channel))
         ksi.write()
-        print(os.path.join(outputdir, 'track_' + channel))
+        logger.info(os.path.join(outputdir, 'track_' + channel))
 
 
 def index(f):
@@ -221,7 +274,7 @@ def index(f):
                     raise Exception('Premature EOF, truncated RAW file?')
                 v = struct.unpack('<l', mf[position + length + 4:position + length + 8])
                 t = msg.decode('latin-1')
-                if v[0] != length: print(
+                if v[0] != length: logger.warning(
                     f'Datagram at {position}: control lenght mismatch ({length} vs {v[0]}) - endianness error or corrupt file?')
                 idx.append((position, t, length, mf[position + 4:position + 4 + length]))
                 position += length + 8
@@ -321,7 +374,7 @@ def track2nc(_inputdir, _outputdir, channels):
             df_tracking_border = df_tracking_border.with_columns(
                 pl.Series(name='frequency',
                           values=[code_to_freq[c] for c in channel_codes]))
-            print(raw_file)
+            logger.info(raw_file)
             df_tracking_border = drop_range_low_varying_targets(df_tracking_border, 0.1, 5)
             # Add the number of targets in each ping
             # NB not in use, this would require ping_time as a dimension in the xarray dataset
@@ -364,7 +417,7 @@ def drop_range_low_varying_targets(df_tracking_border: pl.DataFrame, range_delta
                 len(df_for_id) > min_length):
             remove_ids.append(id)
     if len(remove_ids) > 0:
-        print(f"Removing {len(remove_ids)} targets with almost constant range")
+        logger.info(f"Removing {len(remove_ids)} targets with almost constant range")
     df_tracking_border = df_tracking_border.filter(~pl.col('single_target_identifier').is_in(remove_ids))
     return df_tracking_border
 
@@ -393,23 +446,23 @@ def track2png(_pcdir, _koronadir, channels):
             # Read track xarray
             ds_track = xr.open_dataset(os.path.join(koronadir, filename.replace('.nc', '-korona.nc')))
             if ds_track['i'].shape[0] == 0:
-                print(f"No tracks found in {filename}")
+                logger.warning(f"No tracks found in {filename}")
                 ds_track.close()
                 continue
 
             # Assume that the group from the firs data set is similar across all nc files
             with Dataset(ncfile, "r") as nc_dataset:
                 grp = sorted(list(nc_dataset.groups.keys()))
-            print(f"Filename: {filename}")  # Check filename
-            print(f"Groups found: {grp}")  # Check what groups exist
+            logger.info(f"Filename: {filename}")  # Check filename
+            logger.info(f"Groups found: {grp}")  # Check what groups exist
 
             data = [xr.open_dataset(ncfile, engine='netcdf4', group=_grp)
                     for _grp in grp if not _grp == 'Environment']
-            print(f"Data length: {len(data)}")  # Should match non-Environment groups
+            logger.info(f"Data length: {len(data)}")  # Should match non-Environment groups
 
             # Skip if the file is empty (no groups other than Environment)
             if len(data) == 0:
-                print(f"Skipping {filename}: no data groups found (only Environment or no groups)")
+                logger.info(f"Skipping {filename}: no data groups found (only Environment or no groups)")
                 ds_track.close()
                 continue
 
@@ -422,7 +475,7 @@ def track2png(_pcdir, _koronadir, channels):
                 if match:
                     frequencies.append(int(match.group(1)) * 1000)
                 else:
-                    print(f"Warning: Could not parse channel ID '{channel_id}'")
+                    logger.warning(f"Warning: Could not parse channel ID '{channel_id}'")
 
             # Initialize track masks based on available data type
             track_masks = []
@@ -459,7 +512,7 @@ def track2png(_pcdir, _koronadir, channels):
                 )
 
                 if not np.any(valid_range_bins):
-                    print(f"Warning: No valid data in {_data.attrs.get('channel_id', data_idx)}")
+                    logger.warning(f"Warning: No valid data in {_data.attrs.get('channel_id', data_idx)}")
                     continue
 
                 # Crop to valid ranges

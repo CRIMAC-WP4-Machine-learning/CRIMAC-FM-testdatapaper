@@ -8,6 +8,7 @@ from crimactools.tasks import (
     raw2tracks_task,
     tracks2nc_task,
     tracks2png_task,
+    pc2tsf_task,
 )
 from crimactools.crimac_logging import setup_logging
 
@@ -73,8 +74,11 @@ def raw2pc():
 
 def raw2tracks():
     run_task(raw2tracks_task,
-             description="Tracking using the Korona tracking module"
-             )
+             description="Tracking using the Korona tracking module",
+             extra_args=lambda parser: {
+                 parser.add_argument("--tracking_config", type=str, help="Path to tracking config json file"),
+                 parser.add_argument("--ranges_config", type=str, help="Path to ranges config xml file")
+             })
 
 
 def tracks2nc():
@@ -93,3 +97,15 @@ def pc2png():
     run_task(
         pc2png_task, description="Generate an echogram image from pulse compressed data"
     )
+
+
+def pc2tsf():
+    run_task(pc2tsf_task,
+             description="Generate a TSf from tracks and pulse compressed data",
+             extra_args=lambda parser : parser.add_argument("--fft_config", type=str,
+                                                            help="Path to FFT config json file"),
+             )
+
+
+if __name__ == '__main__':
+    pc2tsf()

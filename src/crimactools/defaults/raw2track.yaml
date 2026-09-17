@@ -1,0 +1,46 @@
+defaults:
+  Active: true
+  TrackerType: "Peak"
+  PlatformMotionType: "Floating"
+  MinTS: -50
+  MaxTS: 0
+  PulseLengthDeterminationLevel: 2
+  MinEchoLength: 0
+  MaxEchoLength: 1
+  MaxGainCompensation: 18
+  DoPhaseDeviationCheck: true
+  MaxPhaseDevSteps: 20
+  MaxDepth: 500
+  MaxAlongshipAngle: 10
+  MaxAthwartshipAngle: 10
+  InitiationMinLength: 1
+  MaxMissingPings: 2
+  MaxMissingSamples: 0
+  MaxMissingPingsFraction: 0.15
+  MinTrackLength: 6
+  MinSampleToLengthFraction: 0.5
+  InitiationGateFunction:
+      Alpha: 2.8
+      Beta: 2.8
+      Range: 0.1
+      TS: 20
+  GateFunction:
+      Alpha: 2.8
+      Beta: 2.8
+      Range: 0.1
+      TS: 20
+  AlphaBetaEstimator:
+      Alpha: 0.9
+      Beta: 0.1
+
+by_frequency:
+  38000:
+    # settings specific to 38 kHz
+  70000:
+    # settings specific to 70 kHz
+  120000:
+    # settings specific to 120 kHz
+  200000:
+    # settings specific to 200 kHz
+  333000:
+    # settings specific to 333 kHz
