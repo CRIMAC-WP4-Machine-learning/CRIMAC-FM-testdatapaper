@@ -1,0 +1,931 @@
+# this script reads track definitions and estimate TSf
+import numpy as np
+import os
+from pathlib import Path
+import xarray as xr
+import json
+import yaml
+import glob
+from time import time
+import scipy.signal as signal
+import xml.etree.ElementTree as ET
+import logging
+
+from numpy import ndarray
+
+logger = logging.getLogger(__name__)
+
+'''
+YNGVE: Added function for calculating TSf.
+- It works with vectorized data input, so that, for a given frequency all the
+imported pings and targets can be fed directly.
+- One frequency from one file is read and calculated at each loop iteration.
+This is done so that it's easy to export a file containing track and TSf data
+with a name corresponding to the source file.
+
+Input params are dicts named 'data', 'tracks' and 'FFT_params' . The contents
+can be read from the list of variables.
+The function returns TS(f), target_ranges, target_angle_alongship, target_angle_athwartship.
+'''
+
+
+def read_workfile(work_file_path, channel) -> dict:
+    """
+    Read workfile and return a dictionary with the following keys:
+    - 'workfile': workfile path
+    - mask
+    - threshold
+    - curveBoundary
+    Currently only supports masks and boundaries, not schools or threshold data.
+
+    returns:
+    - workfile_dict: dictionary with workfile data
+    - version: version of the workfile
+    """
+
+    tree = ET.parse(work_file_path)
+    root = tree.getroot()
+
+    # Get version from regionInterpretation
+    version = root.attrib.get('version')
+
+    # initialize variables
+    channel_id = []
+
+    # Parse timeRange data
+    time_range = root.find('timeRange')
+    start = time_range.attrib.get('start') if time_range is not None else None
+    start_time = float(start) if start is not None else 0.0
+    numpings = time_range.attrib.get('numberOfPings') if time_range is not None else None
+    num_pings = int(numpings) if numpings is not None else 0
+
+    # Parse masking data
+    masking_data = []
+    mask_elements = root.findall('.//mask')
+    for mask_element in mask_elements:
+        if mask_element is not None:
+            channel_id = mask_element.attrib.get('channelID')
+
+            if channel_id == channel:
+                for ping in mask_element.findall('ping'):
+                    pingoffset = ping.attrib.get('pingOffset')
+                    ping_offset = int(pingoffset) if pingoffset is not None else 0
+                    # Split the ping values into coordinates
+                    values = [float(x) for x in ping.text.split()] if ping.text is not None else []
+                    masking_data.append({
+                        'pingOffset': ping_offset,
+                        'coordinates': values
+                    })
+                break
+            else:
+                channel_id = []
+                continue
+
+    # Parse layer interpretation data
+    layer_data: list[dict] = []
+    layer_boundaries = root.findall('.//curveBoundary')
+
+    for boundary in layer_boundaries:
+        boundary_id = boundary.attrib.get('id')
+        start_connector = boundary.attrib.get('startConnector')
+        end_connector = boundary.attrib.get('endConnector')
+
+        depths = boundary.find('.//depths')
+
+        if depths is not None:
+
+            depth_values = [float(x) for x in depths.text.split()] if depths.text is not None else []
+
+            layer_data.append({
+                'id': boundary_id,
+                'start_connector': start_connector,
+                'end_connector': end_connector,
+                'depths': depth_values
+            })
+    layer_definitions = []
+    layers = root.findall('.//layerDefinitions/layer')
+
+    for layer in layers:
+        objnumber = layer.attrib.get('objectNumber')
+        layer_info = {
+            'object_number': int(objnumber) if objnumber is not None else None,
+            'visited': layer.attrib.get('hasBeenVisisted') == 'true',
+            'boundary_ids': [],
+            'boundaries': []
+        }
+
+        boundaries = layer.findall('.//boundaries/*')
+        for boundary in boundaries:
+            boundary_info = {
+                'type': boundary.tag,
+                'id': boundary.attrib.get('id')
+            }
+            if boundary.tag == 'curveBoundary':
+                boundary_info['is_upper'] = boundary.attrib.get('isUpper')
+                boundary_info['curve_boundary_id'] = boundary.attrib.get('id')
+            layer_info['boundaries'].append(boundary_info)
+
+        layer_definitions.append(layer_info)
+
+    # Parse track edits
+    track_edits = []
+    track_edits_element = root.find('.//trackEdits')
+    if track_edits_element is not None:
+        replaced_ids = track_edits_element.find('replacedIds')
+        if replaced_ids is not None and replaced_ids.text:
+            # Split the text into a list of integers
+            track_edits = [int(x) for x in replaced_ids.text.split()]
+
+    return {
+        'version': version,
+        'start_time': np.datetime64(int(start_time * 1000), 'ms'),
+        'number_of_pings': num_pings,
+        'channel_id': channel_id,
+        'masking_data': masking_data,
+        'layer_data': layer_data,
+        'layer_definitions': layer_definitions,
+        'track_edits': track_edits
+    }
+
+
+def calcFrequencyArray(delta_f, f0, f1):
+    """
+    Calculate frequency array from desired delta-frequency.
+
+    Parameters
+    ----------
+    delta_f : float
+        Spacing between frequency points [Hz]
+    f0 : float
+        Start frequency [Hz]
+    f1 : float
+        Stop frequency
+
+    Returns
+    -------
+    f_m : float
+        Frequency array [Hz]
+    """
+    n_f_points = np.int32(1 + np.round((f1 - f0) / delta_f))
+    f_m = np.linspace(f0, f1, n_f_points)
+    return f_m
+
+
+def calcAbsorption(t, s, d, c, f):
+    """
+    Calculate acoustic absorption.
+    Uses the Francois & Garrison (1982) equations.
+
+    Parameters
+    ----------
+    t : float
+        Temperature [°C]
+    s : float
+        Salinity [PPT]
+    d : float
+        Depth [m]
+    c : float
+        Sound speed [m/s]
+    f : np.array
+        Frequencies [kHz]
+
+    Returns
+    -------
+    np.array
+        Estimates of acoustic absorption [dB/m]
+    """
+    if s < 10:
+        ph = 7.
+    else:
+        ph = 8.
+    f = f / 1000
+    a1 = (8.86 / c) * 10 ** (0.78 * ph - 5)
+    p1 = 1
+    f1 = 2.8 * (s / 35) ** 0.5 * 10 ** (4 - 1245 / (t + 273))
+    a2 = 21.44 * (s / c) * (1 + 0.025 * t)
+    p2 = 1 - 1.37e-4 * d + 6.62e-9 * d**2
+    f2 = 8.17 * 10 ** (8 - 1990 / (t + 273)) / (1 + 0.0018 * (s - 35))
+    p3 = 1 - 3.83e-5 * d + 4.9e-10 * d**2
+    a3l = 4.937e-4 - 2.59e-5 * t + 9.11e-7 * t**2 - 1.5e-8 * t**3
+    a3h = 3.964e-4 - 1.146e-5 * t + 1.45e-7 * t**2 - 6.5e-10 * t**3
+    a3 = a3l * (t <= 20) + a3h * (t > 20)
+    a = f**2 * (
+        a1 * p1 * f1 / (f1**2 + f**2) +
+        a2 * p2 * f2 / (f2**2 + f**2) +
+        a3 * p3
+    )
+    return a / 1000
+
+
+def pressureToDepth(P, lat):
+    """
+    P: pressure in MPa
+    lat: latitude in degrees
+
+    returns depth in meters
+    """
+    g = gravity(lat)
+    return (9.72659e2 * P - 2.2512e-1 * P ** 2 + 2.279e-4 * P ** 3 - 1.82e-7 * P ** 4) / (g + 1.092e-4 * P)
+
+
+def gravity(lat):
+    """
+    lat: latitude in degrees
+
+    returns: gravitational constant g
+    """
+    return 9.780318 * (1 + 5.2788e-3 * (np.sin(lat * np.pi / 180)) ** 2 + 2.36e-5 * (np.sin(lat * np.pi / 180)) ** 4)
+
+
+def soundSpeedDelGrosso(s, t, p):
+    # s: salinity in PPT
+    # S: salinity in PSU (1 PPT = 1 PSU)
+    # t: temperature in degC
+    # T: temperatuer in degC
+    # p: pressure in MPa
+    # P: pressure in kg/cm^2 (1 MPa = 10.19716 kg/cm^2)
+
+    S = s
+    T = t
+    P = p * 10.19716
+
+    # COnstants
+    C000 = 1402.392
+    CT1 = 0.5012285e1
+    CT2 = -0.551184e-1
+    CT3 = 0.221649e-3
+    CS1 = 0.1329530e1
+    CS2 = 0.1288598e-3
+    CP1 = 0.1560592
+    CP2 = 0.2449993e-4
+    CP3 = -0.8833959e-8
+    CST = -0.1275936e-1
+    CTP = 0.6353509e-2
+    CT2P2 = 0.2656174e-7
+    CTP2 = -0.1593895e-5
+    CTP3 = 0.5222483e-9
+    CT3P = -0.4383615e-6
+    CS2P2 = -0.1616745e-8
+    CST2 = 0.9688441e-4
+    CS2TP = 0.4857614e-5
+    CSTP = -0.3406824e-3
+
+    deltaCT = CT1 * T + CT2 * T ** 2 + CT3 * T ** 3
+    deltaCS = CS1 * S + CS2 * S ** 2
+    deltaCP = CP1 * P + CP2 * P ** 2 + CP3 * P ** 3
+    deltaCSTP = (CTP * T * P + CT3P * T ** 3 * P + CTP2 * T * P ** 2 +
+                 CT2P2 * T ** 2 * P ** 2 + CTP3 * T * P ** 3 +
+                 CST * S * T + CST2 * S * T ** 2 + CSTP * S * T * P +
+                 CS2TP * S ** 2 * T * P + CS2P2 * S ** 2 * P ** 2)
+    return C000 + deltaCT + deltaCS + deltaCP + deltaCSTP
+
+
+def calcAngles(y_pc_halves, gamma_theta, gamma_phi):
+    """
+    Calculate splitbeam angles from 4 quadrant receiver/transducer data.
+
+    Parameters
+    ----------
+    y_pc_halves : np.array
+        Pulse compressed signal from transducer halves [V]
+    gamma_theta : float
+         Major axis conversion factor from electrical splitbeam angles to physical angles []
+    gamma_phi : float
+        Minor axis conversion factor from electrical splitbeam angles to physical angles []
+
+    Returns
+    -------
+    theta_n : np.array
+        Major axis physical splitbeam angles [°]
+    phi_n : np.array
+        Minor axis physical splitbeam angles [°]
+
+    """
+
+    y_pc_fore_n, y_pc_aft_n, y_pc_star_n, y_pc_port_n = y_pc_halves
+    y_theta_n = y_pc_fore_n * np.conj(y_pc_aft_n)
+    y_phi_n = y_pc_star_n * np.conj(y_pc_port_n)
+
+    theta_n = (
+        np.arcsin(np.arctan2(np.imag(y_theta_n), np.real(y_theta_n)) / gamma_theta) * 180 / np.pi
+    )
+
+    phi_n = (
+        np.arcsin(np.arctan2(np.imag(y_phi_n), np.real(y_phi_n)) / gamma_phi) * 180 / np.pi
+    )
+
+    return theta_n, phi_n
+
+
+def calcTransducerHalves(y_pc_nu):
+    """
+    Calculate the half transducer pulse compressed signals from the four
+        sectors in a 4-sector transducer.
+
+    Parameters
+    ----------
+    y_pc_nu : np.array
+        The pulse compressed data from each receiver/transducer sector [V]
+
+    Returns
+    -------
+    y_pc_fore_n : np.array
+        Signal from the forward half of the transducer [V]
+    y_pc_aft_n : np.array
+        Signal from the aft half of the transducer [V]
+    y_pc_star_n : np.array
+        Signal from the starboard half of the transducer [V]
+    y_pc_port_n : np.array
+        Signal from the port half of the transducer [V]
+    """
+    y_pc_fore_n = 0.5 * (y_pc_nu[:, 2, :] + y_pc_nu[:, 3, :])
+    y_pc_aft_n = 0.5 * (y_pc_nu[:, 0, :] + y_pc_nu[:, 1, :])
+    y_pc_star_n = 0.5 * (y_pc_nu[:, 0, :] + y_pc_nu[:, 3, :])
+    y_pc_port_n = 0.5 * (y_pc_nu[:, 1, :] + y_pc_nu[:, 2, :])
+    return y_pc_fore_n, y_pc_aft_n, y_pc_star_n, y_pc_port_n
+
+
+def calculate_beam_pattern(theta, phi, offset_along, offset_athwart, beam_along, beam_athwart):
+    """Calculate beam pattern compensation"""
+    return (0.5 * 6.0206 * (
+            (np.abs(theta[:, None] - offset_along) / (beam_along / 2)) ** 2 +
+            (np.abs(phi[:, None] - offset_athwart) / (beam_athwart / 2)) ** 2 -
+            0.18 * ((np.abs(theta[:, None] - offset_along) / (beam_along / 2)) ** 2 *
+                    (np.abs(phi[:, None] - offset_athwart) / (beam_athwart / 2)) ** 2))
+            )
+
+
+def process_target_strength(y_pc_t_n, range_t, temp, sal, c_sound, f_m, n_dft, idx, Y_mf_auto_red_m, imp, p_tx_e, lambda_m, g_theta_phi_m, N_u):
+    """Process FFT and calculate target strength"""
+    # FFT processing
+    _Y_pc_t_m = np.fft.fft(y_pc_t_n, n=n_dft, axis=1).astype("complex64")
+    Y_pc_t_m = _Y_pc_t_m[:, idx]
+    Y_tilde_pc_t_m = Y_pc_t_m / Y_mf_auto_red_m
+    # Power calculations
+
+    p_rx = N_u * (np.abs(Y_tilde_pc_t_m) / (2 * np.sqrt(2))) ** 2 * imp
+    # Absorption and target strength
+    alpha = (calcAbsorption(temp, sal, range_t, c_sound, f_m)).T
+    TS = (10 * np.log10(p_rx) +
+          40 * np.log10(range_t[:, None]) +
+          2 * alpha * range_t[:, None] -
+          10 * np.log10((p_tx_e * lambda_m**2 * g_theta_phi_m**2) / (16 * np.pi**2)))
+
+    return TS
+
+
+def TSf(
+        data,
+        tracks,
+        frequency,
+        FFT_params=None,
+        CTD=None
+):
+
+    """
+    Data input for one frequency at a time. Calculates TSf and associated
+        data for tracked echosounder data.
+
+
+    Parameters
+    --------
+    data : dataframe
+        Dataframe of numpy arrays containing data required for calculating TSf
+    tracks : dataframe
+        dataframe of track info, namely ping_time and range
+    frequency: the frequency of interest, in Hz.
+    FFT_params:   dict
+            containing FFT window length in meters before ('FFTbefore') and
+            after ('FFTafter') peak, and desired resolution in frequency
+            ('delta_f'). Presumed to be the same for all pings in 'data'.
+
+    To reduce function call overhead, the structure uses no sub-functions.
+    """
+
+    t1 = time()
+    # Define variables to extract
+    variables = [
+        'ping_time', 'transceiver_impedance', 'transmit_frequency_start',
+        'transmit_frequency_stop', 'sample_interval', 'range', 'sound_speed',
+        'angle_sensitivity_alongship', 'angle_sensitivity_athwartship',
+        'calibration_angle_offset_alongship', 'calibration_angle_offset_athwartship',
+        'calibration_beamwidth_alongship', 'calibration_beamwidth_athwartship',
+        'calibration_frequency', 'calibration_gain', 'pulse_compressed_re',
+        'pulse_compressed_im', 'y_mf_auto_red_re', 'y_mf_auto_red_im',
+        'angle_alongship', 'angle_athwartship', 'transmit_power'
+    ]
+
+    # Extract all values at once
+    (ping_time, z_rx_e, f_0, f_1, sample_interval, r_n, sound_speed,
+     angle_sensitivity_alongship, angle_sensitivity_athwartship,
+     angle_offset_alongship, angle_offset_athwartship,
+     beamwidth_alongship, beamwidth_athwartship,
+     calibration_frequencies, dB_G0, pc_re, pc_im,
+     y_mf_auto_red_re, y_mf_auto_red_im,
+     theta_n, phi_n, p_tx_e) = [data[var].values for var in variables]
+
+    # Additional calculations
+    N_u = pc_re.shape[1]
+    track_ping_time = tracks['ping_time'].values
+    r_t = tracks['single_target_range'].values
+    z_td_e = 75
+    logger.info(f"Time to unpack variables: {time() - t1:.1f} s")
+
+    if FFT_params is not None:
+        FFTbefore = FFT_params[str(frequency)]['FFTbefore']
+        FFTafter = FFT_params[str(frequency)]['FFTafter']
+        delta_f = FFT_params['delta_frequency']
+    else:
+        FFTbefore = 0.5
+        FFTafter = 0.5
+        delta_f = 100
+    if CTD is not None:
+        salinity = CTD['salinity'].values
+        temperature = CTD['temperature'].values
+    else:
+        salinity = 30.  # default value chosen from D2023006 CTD
+        temperature = 15.  # default value chosen from D2023006 CTD
+
+    # If f_0 and or f_1 are outside the range in calibration frequencies NO(f_0 and f_1
+    # are changed to be at the edges of the available calibration frequencies.)
+    # variables that are to be interpolated are padded with the edge value QUESTIONNABLE PRACTICE
+    # Otherwise, the interpolation step fails.
+    if f_0[0] < np.min(calibration_frequencies):
+        calibration_frequencies = np.hstack([f_0[0], calibration_frequencies])
+        dB_G0 = np.hstack([dB_G0[0], dB_G0])
+        angle_offset_alongship = np.hstack([angle_offset_alongship[0], angle_offset_alongship])
+        angle_offset_athwartship = np.hstack([angle_offset_athwartship[0], angle_offset_athwartship])
+        beamwidth_alongship = np.hstack([beamwidth_alongship[0], beamwidth_alongship])
+        beamwidth_athwartship = np.hstack([beamwidth_athwartship[0], beamwidth_athwartship])
+    if f_1[0] > np.max(calibration_frequencies):
+        calibration_frequencies = np.hstack([calibration_frequencies, f_1[0]])
+        dB_G0 = np.hstack([dB_G0, dB_G0[-1]])
+        angle_offset_alongship = np.hstack([angle_offset_alongship, angle_offset_alongship[-1]])
+        angle_offset_athwartship = np.hstack([angle_offset_athwartship, angle_offset_athwartship[-1]])
+        beamwidth_alongship = np.hstack([beamwidth_alongship, beamwidth_alongship[-1]])
+        beamwidth_athwartship = np.hstack([beamwidth_athwartship, beamwidth_athwartship[-1]])
+    # Initialize frequency vectors
+    f_0 = f_0[~np.isnan(f_0)][0]
+    f_1 = f_1[~np.isnan(f_1)][0]
+    n_f_points = np.int64(1 + np.round((f_1 - f_0) / delta_f))
+
+    f_m = np.linspace(f_0, f_1, n_f_points)
+
+    f_s_dec = 1 / sample_interval
+
+    # Wavelength at center frequency and f_m
+    # lambda_f_c = sound_speed/f_c
+    lambda_m = (sound_speed / np.tile(f_m, (len(sound_speed), 1)).T).T
+
+    # Assemble complex pulse compressed signals
+    y_pc_nu = pc_re + 1j * pc_im
+    # Average signal over all channels (transducer sectors)
+    y_pc_n = np.sum(y_pc_nu, axis=1) / y_pc_nu.shape[1]
+
+    # Average signals over paired channels corresponding to transducer halves
+    # fore, aft, starboard, port
+    # y_pc_halves_n = calcTransducerHalves(y_pc_nu)
+
+    # Physical angles
+    # theta_n, phi_n = calcAngles(y_pc_halves_n, gamma_theta_f_c, gamma_phi_f_c)
+
+    # TARGET STRENGTH
+    # Reduced auto correlation signal
+    y_mf_auto_n = y_mf_auto_red_re + 1j * y_mf_auto_red_im
+    idx_peak_auto = np.argmax(np.abs(y_mf_auto_n))
+    sample_interval_meters = r_n[1] - r_n[0]
+    left_samples = np.int16(FFTbefore // sample_interval_meters)
+    right_samples = np.int16(FFTafter // sample_interval_meters)
+    idx_start_auto = max(0, idx_peak_auto - left_samples)
+    idx_stop_auto = min(len(y_mf_auto_n), idx_peak_auto + right_samples)
+    y_mf_auto_red_n = y_mf_auto_n[idx_start_auto:idx_stop_auto]
+
+    # DFT of target signal, DFT of reduced auto correlation signal, and
+    # normalized DFT of target signal
+    N_DFT = 8 * int(2 ** np.ceil(np.log2(n_f_points)))
+    idxtmp = np.floor(f_m / f_s_dec[0] * N_DFT).astype("int")
+    idx = np.mod(idxtmp, N_DFT)
+    # DFT for the transmit signal
+    _Y_mf_auto_red_m = np.fft.fft(y_mf_auto_red_n, n=N_DFT).astype("complex64")
+    Y_mf_auto_red_m = _Y_mf_auto_red_m[idx]
+
+    # Interpolate angle_offset, beamwidth, dB_g0
+    # Interpolation only works when f_m is within the bounds of
+    # calibration_frequencies.
+    dB_G0_interp = np.interp(f_m, calibration_frequencies, dB_G0)
+    angle_offset_alongship_interp = np.interp(
+        f_m, calibration_frequencies, angle_offset_alongship
+    )
+    angle_offset_athwartship_interp = np.interp(
+        f_m, calibration_frequencies, angle_offset_athwartship
+    )
+    beamwidth_alongship_interp = np.interp(
+        f_m, calibration_frequencies, beamwidth_alongship
+    )
+    beamwidth_athwartship_interp = np.interp(
+        f_m, calibration_frequencies, beamwidth_athwartship
+    )
+    g0_m_interp = np.power(10, dB_G0_interp / 10)
+
+    # Loop through all pings
+    tolerance = np.timedelta64(1, 'ms')  # Account for different rounding of time
+    # Pre-allocate arrays for all results
+    n_tracks = len(track_ping_time)
+    freqs = [f_m for _ in range(n_tracks)]
+
+    # Find all valid ping indices at once
+    time_differences = np.abs(ping_time[:, None] - track_ping_time)
+    valid_pings = np.where(time_differences <= tolerance)[0]
+    # valid_tracks = np.where(time_differences <= tolerance)[1]
+
+    idx_peak_p_rx = np.round((r_t - r_n[0]) / sample_interval_meters).astype(int)
+    theta_t = theta_n[valid_pings, idx_peak_p_rx]
+    phi_t = phi_n[valid_pings, idx_peak_p_rx]
+    window_indices = idx_peak_p_rx[:, None] + np.arange(-left_samples, right_samples + 1)[None, :]
+
+    y_pc_t_n = y_pc_n[valid_pings[:, None], window_indices]
+
+    B_theta_phi_m = calculate_beam_pattern(theta_t, phi_t,
+                                           angle_offset_alongship_interp,
+                                           angle_offset_athwartship_interp,
+                                           beamwidth_alongship_interp,
+                                           beamwidth_athwartship_interp)
+
+    g_theta_phi_m = g0_m_interp / np.power(10, B_theta_phi_m / 10)
+    imp = (np.abs(z_rx_e[valid_pings[:, None]] + z_td_e) / np.abs(z_rx_e[valid_pings[:, None]])) ** 2 / np.abs(z_td_e)
+
+    p_tx_e = p_tx_e[valid_pings[:, None]]
+    lambda_m = lambda_m[valid_pings]
+
+    TS_m = process_target_strength(y_pc_t_n, r_t,
+                                   temperature, salinity,
+                                   sound_speed[valid_pings], f_m[:, None],
+                                   N_DFT, idx, Y_mf_auto_red_m,
+                                   imp, p_tx_e,
+                                   lambda_m, g_theta_phi_m, N_u)
+
+    r_n = r_n[window_indices]
+
+    return [
+        TS_m,
+        FFTbefore,
+        FFTafter,
+        freqs,
+        r_t,
+        theta_t,
+        phi_t
+    ]
+
+
+def generate_window(length, pad, stopbandattenuation):
+    window = signal.windows.tukey(length, 0.35, True)
+    linear_stopband_attenuation = 10. ** (-stopbandattenuation / 20.)
+    window = (window + linear_stopband_attenuation) / (1 + linear_stopband_attenuation)
+    window = np.pad(window, pad, 'edge')
+    return window
+
+
+def construct_full_TSf(TSf_t, freq_tot, f_m):
+    TSf_tot = np.full((len(TSf_t), len(freq_tot)), fill_value=np.nan)
+    idx = np.searchsorted(freq_tot, f_m)
+    TSf_tot[:, idx] = TSf_t
+    TSf_tot = np.round(TSf_tot, 3)  # round TSf values to three decimal places
+    return TSf_tot
+
+
+def construct_full_freqs(raw_pc, delta_f):
+    # Make frequency array for all available frequencies
+    freq_tot = []
+    for channel in raw_pc:
+        f0 = channel['transmit_frequency_start'].values
+        f0 = f0[~np.isnan(f0)][0]
+        f1 = channel['transmit_frequency_stop'].values
+        f1 = f1[~np.isnan(f1)][0]
+        freq_temp = calcFrequencyArray(delta_f, f0, f1)
+        freq_tot.append(freq_temp)
+    return np.hstack(freq_tot)
+
+
+def filter_tracks_by_workfile(targets: xr.Dataset, workfile: str, indexfile: str, ping_times: ndarray,
+                              channel: np.int8) -> xr.Dataset:
+    """
+    filter the tracks by removing the tracks that are masked in the work file
+    :param targets: the detected tracks.
+    :param workfile: the work file full path.
+    :param indexfile: the index file full path.
+    :param ping_times: the ping times of the tracks.
+    :param channel: the channel index of the tracks.
+    :return: the filtered tracks.
+    """
+
+    work_data = read_workfile(workfile, channel)
+    index = xr.open_dataset(indexfile, engine='netcdf4')
+    delete_masks = work_data['masking_data']
+    delete_masks_pingOffsets = np.array([d['pingOffset'] for d in delete_masks])
+    # Adjust delete_masks_pingOffsets to match ping_times
+    if len(ping_times) < work_data['number_of_pings']:
+        offset_index = np.where(np.abs(ping_times[0] - index.ping_time.values) <= np.timedelta64(1, 'ms'))[0][0]
+    else:
+        offset_index = 0
+    # delete_masks_pingOffsets = delete_masks_pingOffsets - offset_index
+    # remove negative values from delete_masks_pingOffsets
+    # delete_masks_pingOffsets = delete_masks_pingOffsets[delete_masks_pingOffsets >= 0]
+
+    delete_masks_coordinates = [d['coordinates'] for d in delete_masks]
+    deleted_tracks = work_data['track_edits']
+    layers = work_data['layer_data']
+
+    # Find layer ids in which are 'is_upper' and stitch together
+    is_upper_layers = [(boundary['id'], boundary.get('is_upper', None)) for boundary in work_data['layer_definitions'][0]['boundaries']]
+    upper_boundary = []
+    lower_boundary = []
+    for layer_id, is_upper in is_upper_layers:
+        if is_upper == 'true':
+            for layer in layers:
+                if layer['id'] == layer_id:
+                    upper_boundary.extend(layer['depths'])
+        elif is_upper == 'false':
+            for layer in layers:
+                if layer['id'] == layer_id:
+                    lower_boundary.extend(layer['depths'])
+
+    # Create a mask for each target
+    # A 0 mask means that the target is not masked
+    target_ping_times = targets['ping_time'].values.astype('datetime64[ms]')
+    single_target_ranges = targets['single_target_range'].values
+    single_target_identifiers = targets['single_target_identifier'].values
+    delete_mask = np.zeros(single_target_ranges.shape[0], dtype=np.int16)
+    layer_mask = np.zeros(single_target_ranges.shape[0], dtype=np.int16)
+    track_deleted = np.zeros(single_target_ranges.shape[0], dtype=np.int16)
+
+    for i, single_target_range in enumerate(single_target_ranges):
+        # Find whether the target range is contained in masks or layers
+        # If it is, set the mask to 1
+        # First find the ping index for the target
+        ping_index = np.searchsorted(ping_times, target_ping_times[i]) + offset_index
+
+        if (ping_index in delete_masks_pingOffsets):
+            matching_index = np.where(delete_masks_pingOffsets == ping_index)[0][0]
+            coordinates = list(zip(delete_masks_coordinates[matching_index][::2], delete_masks_coordinates[matching_index][1::2]))
+            start_range = delete_masks_coordinates[matching_index][0]
+            end_range = start_range
+
+            for coordinate in coordinates:
+                if coordinate[0] == start_range:
+                    end_range = start_range + coordinate[1]
+                else:
+                    start_range = end_range + coordinate[0]
+                    end_range = start_range + coordinate[1]
+                if (single_target_range >= start_range and single_target_range <= end_range):
+                    delete_mask[i] = 1
+                    break
+
+        start_layer = upper_boundary[ping_index]
+        end_layer = lower_boundary[ping_index]
+        if (single_target_range <= start_layer or single_target_range >= end_layer):
+            layer_mask[i] = 1
+    for i, single_target_identifier in enumerate(single_target_identifiers):
+        if single_target_identifier in deleted_tracks:
+            track_deleted[i] = 1
+
+    targets['delete_mask'] = ('i', delete_mask)
+    targets['layer_mask'] = ('i', layer_mask)
+    targets['track_deleted'] = ('i', track_deleted)
+    return targets
+
+
+def configuration(dir):
+    pathConfig: dict[str, str] = {
+        'FFTfile': os.path.join(dir, 'FFT', 'FFT.json')
+    }
+    return pathConfig
+
+
+def save_fft_file(FFT, FFTfile):
+    with open(FFTfile, 'w') as file:
+        json.dump(FFT, file, indent=4)
+
+
+def parse_default_fft_params(frequencies):
+    script_dir = Path(__file__).parent
+    defaults_file = script_dir / "defaults" / "fft.yaml"
+    with open(defaults_file, "r") as file:
+        defaults = yaml.safe_load(file)
+
+    fft_params = {}
+    for k, v in defaults['global_defaults'].items():
+        fft_params[k] = v
+    for f in frequencies:
+        f_Hz = str(int(f))
+        fft_params[f_Hz] = defaults['defaults'].copy()
+    by_frequency_defaults = defaults['by_frequency']
+    for f in frequencies:
+        f_Hz = str(int(f))
+        if by_frequency_defaults[f]:
+            for key, value in by_frequency_defaults[f].items():
+                fft_params[f_Hz][key] = value
+    return fft_params
+
+
+def is_cw_data(ncfile_dir):
+    # only check the first nc-file in the directory
+    nc_files = [f for f in os.listdir(ncfile_dir) if f.endswith('.nc')]
+    if not nc_files:
+        return False
+
+    first_ncfile = os.path.join(ncfile_dir, nc_files[0])
+
+    # if any of the groups contain 'sv', it is cw data
+    data = xr.open_groups(first_ncfile, engine='netcdf4')
+    for grp in data.values():
+        if 'sv' in grp:
+            return True
+    return False
+
+
+def pc2tsf(trackdir: str, ncdir: str, indexdir: str, outputdir: str, channels: dict, workfiledir: str, fft_file: str | None):
+    """
+    :param trackdir: directory containing the track files.
+    :param ncdir: directory containing the pulse compressed NetCDF files.
+    :param indexdir: directory containing the index files.
+    :param outputdir: output directory for saving the TSF files.
+    :param channels: dictionary containing the channel frequencies.
+    :param workfiledir: optional directory containing the work files. If None, no work files are used.
+    :param fft_file: the FFT parameters file.
+    """
+
+    total_targets = 0
+
+    config = configuration(trackdir)
+
+    # Read or create FFT parameters for dataset.
+    try:
+        if not os.path.exists(config['FFTfile']):
+            os.makedirs(os.path.dirname(config['FFTfile']), exist_ok=True)
+        if fft_file is not None:
+            with open(fft_file, 'r') as file:
+                fft_params = json.load(file)
+            save_fft_file(fft_params, config['FFTfile'])
+        elif os.path.exists(config['FFTfile']):
+            with open(config['FFTfile'], 'r') as file:
+                fft_params = json.load(file)
+        else:
+            # Create FFT from default values
+            frequency_union = set()
+            for _, c in channels.items():
+                frequency_union.update(c['transducer_frequency'])
+            fft_params = parse_default_fft_params(sorted(frequency_union))
+            save_fft_file(fft_params, config['FFTfile'])
+    except Exception as e:
+        logger.error(f"Error reading FFT parameters: {e}")
+        raise e
+
+    ncfile_dirs = []
+    if os.path.exists(ncdir):
+        ncfile_dirs = [os.path.join(ncdir, f) for f in os.listdir(ncdir) if f.startswith('pc')]
+
+    track_dirs = []
+    if os.path.exists(trackdir):
+        track_dirs = [os.path.join(trackdir, f) for f in os.listdir(trackdir) if f.startswith('track')]
+
+    for ncfile_dir, trackfile_dir in zip(ncfile_dirs, track_dirs):
+        if is_cw_data(ncfile_dir):
+            logger.warning(f'Skipping CW data {ncfile_dir} (not implemented)')
+            continue
+
+        channel_suffix = os.path.basename(ncfile_dir).split('_')[1]
+        # List NC files
+        track_files = glob.glob(os.path.join(trackfile_dir, '*.nc'))
+        nc_files = glob.glob(os.path.join(ncfile_dir, '*.nc'))
+        for trackfile in track_files:
+            t_start = time()
+            targets = xr.open_dataset(trackfile, engine='netcdf4')
+            trackfilename, _ = os.path.splitext(os.path.basename(trackfile))  # extract filename. Needed for file output later
+            trackfilename = trackfilename.removesuffix('-korona')
+            if targets.sizes['i'] == 0:
+                logger.info(f'Track file {trackfilename} is empty.')
+                continue
+            ncfile = None
+            for _ncfile in nc_files:
+                ncfilename, _ = os.path.splitext(os.path.basename(_ncfile))
+                if ncfilename == trackfilename:
+                    ncfile = _ncfile
+                    break
+            if ncfile is None:
+                continue
+
+            raw_pc_groups = xr.open_groups(ncfile, engine='netcdf4')
+            raw_pc_all: list[xr.Dataset] = [grp for key, grp in raw_pc_groups.items() if 'frequency' in key]
+            raw_pc_attr = raw_pc_groups['/']
+            freqs_raw_pc = raw_pc_attr['frequency'].values
+            env_data = raw_pc_groups['/Environment']
+
+            freqs_targets = sorted(set(targets['frequency'].values))
+            if len(freqs_targets) == 0:
+                logger.info(f'No tracked channels in file {trackfilename}')
+                continue  # skip file if no targets present
+            # Initialize counter for dim "i"
+            n_i = 0
+            current_file_output = xr.Dataset()
+            for i, freq in enumerate(freqs_targets):
+                raw_index = np.int8(np.where(freqs_raw_pc == freq)[0][0])
+                raw_pc: xr.Dataset = raw_pc_all[raw_index]
+
+                # Filter targets to only include the current frequency:
+                filtered_targets = targets.where(
+                    (targets['frequency'] == freq).compute() &
+                    (targets['single_target_range'] < max(raw_pc['range']).values - fft_params[str(freq)]['FFTafter']).compute(),
+                    drop=True)
+
+                ms = filtered_targets.ping_time.values.astype('datetime64[ms]')
+                filtered_targets['ping_time'] = (['i'], ms.astype('datetime64[ns]'))
+                # Filter out raw_pc to only include relevant ranges:
+                range_mask = ((raw_pc['range'] >= np.min(filtered_targets.single_target_range.values) - (fft_params[str(freq)]['FFTbefore'] * 1.02)) &
+                              (raw_pc['range'] <= np.max(filtered_targets.single_target_range.values) + (fft_params[str(freq)]['FFTafter'] * 1.02)))
+                raw_pc_filtered = raw_pc.sel(range=range_mask)
+
+                # Put mask on targets from work file info
+                workfilename = trackfilename + '.work'
+                workfilepath = os.path.join(workfiledir, workfilename)
+                indexfilename = trackfilename + '_index.nc'
+                indexfilepath = os.path.join(indexdir, indexfilename)
+
+                if os.path.exists(workfilepath):
+
+                    filtered_targets = filter_tracks_by_workfile(filtered_targets, workfilepath, indexfilepath, raw_pc['ping_time'].values,
+                                                                 raw_index)
+                    filtered_targets = filtered_targets.where((filtered_targets['track_deleted'] == 0).compute(),
+                                                              drop=True)
+                    if len(filtered_targets) == 0:
+                        logger.info('No targets left after workfile filtering')
+                        continue
+                    logger.info(f'Track file {trackfilename} has {len(filtered_targets.i)} targets after workfile filtering')
+                    filtered_targets = filtered_targets.where((filtered_targets['layer_mask'] == 0).compute(),
+                                                              drop=True)
+                    logger.info(f'Number of targets after workfile layer mask filtering: {len(filtered_targets.i)}')
+                    total_targets += len(filtered_targets.i)
+
+                else:
+                    logger.info(f'No workfile found for file: {workfilename} in {workfiledir}')
+                    filtered_targets['delete_mask'] = ('i', np.zeros(len(filtered_targets.i)))
+                    filtered_targets['layer_mask'] = ('i', np.zeros(len(filtered_targets.i)))
+                    filtered_targets['track_deleted'] = ('i', np.zeros(len(filtered_targets.i)))
+
+                if len(filtered_targets.i) == 0:
+                    logger.info('No targets left after filtering')
+                    # skip frequency if no targets present
+                    continue
+
+                [
+                    TSf_t,
+                    _FFTbefore,
+                    _FFTafter,
+                    f_m,
+                    r_t,
+                    theta,
+                    phi
+                ] = TSf(raw_pc_filtered, filtered_targets, freq, FFT_params=fft_params, CTD=env_data)
+
+                # Make frequency array for all available frequencies
+                freq_tot = construct_full_freqs(raw_pc_all, fft_params['delta_frequency'])
+
+                TSf_tot = construct_full_TSf(TSf_t, freq_tot, f_m[0])
+
+                output_temp = xr.Dataset(
+                    {
+                        'channel_frequency': (['i'], np.full(r_t.shape, freq)),
+                        'pulse_length': (['i'], np.full(r_t.shape, raw_pc_attr['pulse_length'][raw_index].values)),
+                        'ping_time': (['i'], filtered_targets['ping_time'].values),
+                        'TSf': (['i', 'frequency'], TSf_tot),
+                        'FFT_before': (['i'], np.full(r_t.shape, _FFTbefore)),
+                        'FFT_after': (['i'], np.full(r_t.shape, _FFTafter)),
+                        'single_target_identifier': (['i'], np.int64(filtered_targets['single_target_identifier'].values)),
+                        'single_target_range': (['i'], r_t),
+                        'single_target_alongship_angle': (['i'], theta),
+                        'single_target_athwartship_angle': (['i'], phi),
+                        'delete_mask': (['i'], np.int16(filtered_targets['delete_mask'].values)),
+                        'layer_mask': (['i'], np.int16(filtered_targets['layer_mask'].values)),
+                        'track_deleted': (['i'], np.int16(filtered_targets['track_deleted'].values)),
+
+                    },
+                    coords={
+                        "i": np.arange(n_i, n_i + r_t.shape[0]),
+                        "frequency": freq_tot
+                    }
+                )
+                n_i += r_t.shape[0]
+                if i == 0:
+                    current_file_output = output_temp
+                else:
+                    current_file_output = xr.concat([current_file_output, output_temp], dim='i')
+
+            # Save to file:
+            if len(current_file_output) > 0 and current_file_output.sizes['i'] > 0:
+                filename = trackfilename + '_TSf.nc'
+
+                output_fp = os.path.join(outputdir, f'TSf_{channel_suffix}', filename)
+                if not os.path.exists(outputdir):
+                    os.makedirs(outputdir)
+                encoding = {var: {"zlib": True, "complevel": 5} for var in current_file_output.data_vars}
+                current_file_output.to_netcdf(output_fp, encoding=encoding)
+            logger.info(f'Time to process file {trackfile}: {time() - t_start:.1f} s')

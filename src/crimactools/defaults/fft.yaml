@@ -1,0 +1,16 @@
+global_defaults:
+  delta_frequency: 100
+defaults:
+  FFTbefore: 0.5
+  FFTafter: 0.5
+by_frequency:
+  38000:
+    # settings specific to 38 kHz
+  70000:
+    # settings specific to 70 kHz
+  120000:
+    # settings specific to 120 kHz
+  200000:
+    # settings specific to 200 kHz
+  333000:
+    # settings specific to 333 kHz
