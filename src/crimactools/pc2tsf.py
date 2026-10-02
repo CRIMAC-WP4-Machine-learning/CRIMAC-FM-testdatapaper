@@ -374,7 +374,7 @@ def process_target_strength(y_pc_t_n, range_t, temp, sal, c_sound, f_m, n_dft, i
     return TS
 
 
-def TS_cw(data, data_attributes, tracks, frequency, freq_index, CTD=None):
+def TS_cw(data, data_attributes, tracks, freq_index):
     sv = data['sv']
     data_range = data['range']
     ping_time = data['ping_time']
@@ -407,6 +407,60 @@ def TS_cw(data, data_attributes, tracks, frequency, freq_index, CTD=None):
 
     theta = data['angle_alongship'].isel(ping_time=xr.DataArray(valid_pings, dims='i'), range=xr.DataArray(r_i_target, dims='i'))
     phi = data['angle_athwartship'].isel(ping_time=xr.DataArray(valid_pings, dims='i'), range=xr.DataArray(r_i_target, dims='i'))
+
+    return ts, r_t, theta, phi
+
+
+def TS_cw_average(data, data_attributes, tracks, freq_index):
+    """
+    Compute TS for CW data as the average over each target's range interval
+    [single_target_start_range, single_target_stop_range], instead of at the peak range as in TS_cw.
+
+    The average is taken in the linear domain (sigma_bs), not in dB. Range samples falling outside
+    data['range'] are ignored, so data must span the full start/stop interval of every target.
+    Angles are the mean over the same interval. Returns the same tuple as TS_cw.
+    """
+    sv = data['sv']
+    data_range = data['range']
+    ping_time = data['ping_time']
+    n_range = data_range.size
+    sample_interval_meters = data_range[1] - data_range[0]
+    sound_speed = data_attributes['sound_speed']
+    equivalent_beam_angle = data_attributes['equivalent_beam_angle'][freq_index]
+    pulse_length = data_attributes['pulse_length'][freq_index]
+    receive_duration_effective = data_attributes['receive_duration_effective'][freq_index]
+    sa_correction = data_attributes['sa_correction'][freq_index]
+
+    svToTsConstant = 10 * np.log10(sound_speed * receive_duration_effective * 0.5) + equivalent_beam_angle + 2 * sa_correction
+    tvg_range_correction = pulse_length * sound_speed / 4.0
+
+    r_i_start = np.round((tracks['single_target_start_range'] - data_range[0]) / sample_interval_meters).astype(int).values
+    r_i_stop = np.round((tracks['single_target_stop_range'] - data_range[0]) / sample_interval_meters).astype(int).values
+
+    tolerance = np.timedelta64(1, 'ms')  # Account for different rounding of time
+    # Find all valid ping indices at once
+    time_differences = np.abs(ping_time - tracks.ping_time)
+    valid_pings = np.where(time_differences <= tolerance)[0]
+    pings = xr.DataArray(valid_pings, dims='i')
+
+    # The windows have different lengths per target. Pad them all to the longest window, giving an
+    # (i, w) index block that is gathered in one vectorized isel, and mask out the padding.
+    window = r_i_start[:, None] + np.arange(np.max(r_i_stop - r_i_start) + 1)
+    in_window = xr.DataArray((window <= r_i_stop[:, None]) & (window >= 0) & (window < n_range), dims=('i', 'w'))
+    window = xr.DataArray(np.clip(window, 0, n_range - 1), dims=('i', 'w'))
+
+    def window_mean(da):
+        return da.isel(ping_time=pings, range=window).where(in_window).mean('w')
+
+    # TS of each sample in linear domain is sv * tvg_range**2 * 10**(svToTsConstant / 10).
+    # The constant is per ping, so it is applied after averaging.
+    tvg_range = xr.DataArray(data_range.values[window.values], dims=('i', 'w')) - tvg_range_correction.isel(ping_time=pings)
+    sigma = (sv.isel(ping_time=pings, range=window) * tvg_range**2).where(in_window).mean('w')
+    ts = 10 * np.log10(sigma) + svToTsConstant.isel(ping_time=pings)
+
+    r_t = tracks['single_target_range']
+    theta = window_mean(data['angle_alongship'])
+    phi = window_mean(data['angle_athwartship'])
 
     return ts, r_t, theta, phi
 
@@ -918,7 +972,7 @@ def pc2tsf(trackdir: str, ncdir: str, indexdir: str, outputdir: str, channels: d
                     continue
 
                 if cw_data:
-                    TS_t, r_t, theta, phi = TS_cw(raw_pc_filtered, raw_pc_attr, filtered_targets, freq, i, env_data)
+                    TS_t, r_t, theta, phi = TS_cw_average(raw_pc_filtered, raw_pc_attr, filtered_targets, i)
 
                     output_temp = xr.Dataset(
                         {
