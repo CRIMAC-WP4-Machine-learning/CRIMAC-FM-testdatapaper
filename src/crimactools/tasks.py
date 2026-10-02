@@ -333,4 +333,4 @@ def pc2tsf_task(
     data = folder_structure(datadir, dataset_id)
     logger.info(f'#### PC2Tsf for {dataset_id} ####')
     channels, con, ind = raw2meta(data["ekdir"])
-    pc2tsf(data["korona"], data['gridded'], data['gridded'] / Path('index'), data['acoustic'] / Path('TSF'), channels, data['lsss'] / Path('work'), fft_config)
+    pc2tsf(data["korona"], data['gridded'], data['gridded'] / Path('index'), data['acoustic'] / Path('TS'), channels, data['lsss'] / Path('work'), fft_config)
