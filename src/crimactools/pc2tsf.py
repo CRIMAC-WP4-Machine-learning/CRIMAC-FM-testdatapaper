@@ -411,7 +411,7 @@ def TS_cw(data, data_attributes, tracks, freq_index):
     return ts, r_t, theta, phi
 
 
-def TS_cw_average(data, data_attributes, tracks, freq_index):
+def TS_cw_average(data, data_attributes, tracks, freq_index, method: str = 'mean'):
     """
     Compute TS for CW data as the average over each target's range interval
     [single_target_start_range, single_target_stop_range], instead of at the peak range as in TS_cw.
@@ -455,7 +455,12 @@ def TS_cw_average(data, data_attributes, tracks, freq_index):
     # TS of each sample in linear domain is sv * tvg_range**2 * 10**(svToTsConstant / 10).
     # The constant is per ping, so it is applied after averaging.
     tvg_range = xr.DataArray(data_range.values[window.values], dims=('i', 'w')) - tvg_range_correction.isel(ping_time=pings)
-    sigma = (sv.isel(ping_time=pings, range=window) * tvg_range**2).where(in_window).mean('w')
+    if method == 'mean':
+        sigma = (sv.isel(ping_time=pings, range=window) * tvg_range**2).where(in_window).mean('w')
+    elif method == 'max':
+        sigma = (sv.isel(ping_time=pings, range=window) * tvg_range**2).where(in_window).max('w')
+    else:
+        raise ValueError(f"Invalid method: {method}")
     ts = 10 * np.log10(sigma) + svToTsConstant.isel(ping_time=pings)
 
     r_t = tracks['single_target_range']
@@ -787,35 +792,49 @@ def filter_tracks_by_workfile(targets: xr.Dataset, workfile: str, indexfile: str
 
 def configuration(dir):
     pathConfig: dict[str, str] = {
-        'FFTfile': os.path.join(dir, 'FFT', 'FFT.json')
+        'FFTfile': os.path.join(dir, 'FFT_settings', 'FFT.json'),
+        'CWfile': os.path.join(dir, 'CW_settings', 'TS.json')
     }
     return pathConfig
 
 
-def save_fft_file(FFT, FFTfile):
-    with open(FFTfile, 'w') as file:
-        json.dump(FFT, file, indent=4)
+def save_json_file(settings, file_path):
+    with open(file_path, 'w') as file:
+        json.dump(settings, file, indent=4)
 
 
 def parse_default_fft_params(frequencies):
     script_dir = Path(__file__).parent
-    defaults_file = script_dir / "defaults" / "fft.yaml"
+    defaults_file = script_dir / "defaults" / "ts.yaml"
     with open(defaults_file, "r") as file:
         defaults = yaml.safe_load(file)
-
+    fft_defaults = defaults['fft']
     fft_params = {}
-    for k, v in defaults['global_defaults'].items():
+    for k, v in fft_defaults['global_defaults'].items():
         fft_params[k] = v
     for f in frequencies:
         f_Hz = str(int(f))
-        fft_params[f_Hz] = defaults['defaults'].copy()
-    by_frequency_defaults = defaults['by_frequency']
+        fft_params[f_Hz] = fft_defaults['defaults'].copy()
+    by_frequency_defaults = fft_defaults['by_frequency']
     for f in frequencies:
         f_Hz = str(int(f))
         if by_frequency_defaults[f]:
             for key, value in by_frequency_defaults[f].items():
                 fft_params[f_Hz][key] = value
     return fft_params
+
+
+def parse_default_cw_values(frequencies):
+    script_dir = Path(__file__).parent
+    defaults_file = script_dir / "defaults" / "ts.yaml"
+    with open(defaults_file, "r") as file:
+        defaults = yaml.safe_load(file)
+    cw_defaults = defaults['cw']
+    cw_params = {}
+    for f in frequencies:
+        f_Hz = str(int(f))
+        cw_params[f_Hz] = cw_defaults['defaults'].copy()
+    return cw_params
 
 
 def is_cw_data(ncfile_dir):
@@ -834,7 +853,8 @@ def is_cw_data(ncfile_dir):
     return False
 
 
-def pc2tsf(trackdir: str, ncdir: str, indexdir: str, outputdir: str, channels: dict, workfiledir: str, fft_file: str | None):
+def pc2tsf(trackdir: str, ncdir: str, indexdir: str, outputdir: str, channels: dict, workfiledir: str,
+           fft_file: str | None, cw_file: str | None):
     """
     :param trackdir: directory containing the track files.
     :param ncdir: directory containing the pulse compressed NetCDF files.
@@ -847,16 +867,18 @@ def pc2tsf(trackdir: str, ncdir: str, indexdir: str, outputdir: str, channels: d
 
     total_targets = 0
 
-    config = configuration(trackdir)
+    config = configuration(outputdir)
 
-    # Read or create FFT parameters for dataset.
+    # Read or create parameters.
     try:
         if not os.path.exists(config['FFTfile']):
             os.makedirs(os.path.dirname(config['FFTfile']), exist_ok=True)
+        if not os.path.exists(config['CWfile']):
+            os.makedirs(os.path.dirname(config['CWfile']), exist_ok=True)
         if fft_file is not None:
             with open(fft_file, 'r') as file:
                 fft_params = json.load(file)
-            save_fft_file(fft_params, config['FFTfile'])
+            save_json_file(fft_params, config['FFTfile'])
         elif os.path.exists(config['FFTfile']):
             with open(config['FFTfile'], 'r') as file:
                 fft_params = json.load(file)
@@ -866,9 +888,23 @@ def pc2tsf(trackdir: str, ncdir: str, indexdir: str, outputdir: str, channels: d
             for _, c in channels.items():
                 frequency_union.update(c['transducer_frequency'])
             fft_params = parse_default_fft_params(sorted(frequency_union))
-            save_fft_file(fft_params, config['FFTfile'])
+            save_json_file(fft_params, config['FFTfile'])
+        if cw_file is not None:
+            with open(cw_file, 'r') as file:
+                cw_params = json.load(file)
+            save_json_file(cw_params, config['CWfile'])
+        elif os.path.exists(config['CWfile']):
+            with open(config['CWfile'], 'r') as file:
+                cw_params = json.load(file)
+        else:
+            # Create from default values
+            frequency_union = set()
+            for _, c in channels.items():
+                frequency_union.update(c['transducer_frequency'])
+            cw_params = parse_default_cw_values(sorted(frequency_union))
+            save_json_file(cw_params, config['CWfile'])
     except Exception as e:
-        logger.error(f"Error reading FFT parameters: {e}")
+        logger.error(f"Error reading parameters: {e}")
         raise e
 
     ncfile_dirs = []
@@ -972,7 +1008,12 @@ def pc2tsf(trackdir: str, ncdir: str, indexdir: str, outputdir: str, channels: d
                     continue
 
                 if cw_data:
-                    TS_t, r_t, theta, phi = TS_cw_average(raw_pc_filtered, raw_pc_attr, filtered_targets, i)
+                    target_ts_method = cw_params[str(freq)]['target_ts_method'].lower()
+                    if target_ts_method == 'peak':
+                        TS_t, r_t, theta, phi = TS_cw(raw_pc_filtered, raw_pc_attr, filtered_targets, i)
+                    else:
+                        TS_t, r_t, theta, phi = TS_cw_average(raw_pc_filtered, raw_pc_attr, filtered_targets, i,
+                                                              target_ts_method)
 
                     output_temp = xr.Dataset(
                         {
