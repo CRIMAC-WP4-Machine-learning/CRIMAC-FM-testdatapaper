@@ -102,10 +102,8 @@ def pc2png():
 def pc2tsf():
     run_task(pc2tsf_task,
              description="Generate a TSf from tracks and pulse compressed data",
-             extra_args=lambda parser : parser.add_argument("--fft_config", type=str,
-                                                            help="Path to FFT config json file"),
-             )
-
-
-if __name__ == '__main__':
-    pc2tsf()
+             extra_args=lambda parser : {
+                 parser.add_argument("--fft_config", type=str,
+                                     help="Path to FFT config json file"),
+                 parser.add_argument("--cw_config", type=str, help="Path to CW config json file")
+             })
