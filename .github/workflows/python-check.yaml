@@ -17,7 +17,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxml2-16 libxslt1.1
+          
       - name: Install uv
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
