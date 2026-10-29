@@ -58,7 +58,7 @@ def parse_default_tracking_params(frequencies):
 
     by_frequency_defaults = defaults['by_frequency']
     for i, f in enumerate(frequencies):
-        if by_frequency_defaults[f]:
+        if f in by_frequency_defaults and by_frequency_defaults[f]:
             for key, value in by_frequency_defaults[f].items():
                 tracking_params[key][i] = value
 
@@ -86,7 +86,7 @@ def parse_default_transducer_ranges(frequencies):
     by_frequency_defaults = defaults['by_frequency']
     for f in frequencies:
         f_kHz = int(f // 1000)
-        if by_frequency_defaults[f]:
+        if f in by_frequency_defaults and by_frequency_defaults[f]:
             for key, value in by_frequency_defaults[f].items():
                 transducer_ranges[f_kHz][key] = value
 
@@ -182,7 +182,7 @@ def raw2track(inputdir, outputdir, channels, tracking_file, transducer_ranges_fi
                 root = ET.parse(file).getroot()
                 tree = ET.ElementTree(root)
                 tree.write(path_config['TransducerRanges'], encoding='UTF-8', xml_declaration=True)
-        elif not os.path.exists(path_config['TrackingParams']):
+        elif not os.path.exists(path_config['TransducerRanges']):
             logger.warning('No TransducerRanges file found, creating default values')
             roots = []
             for i, channel in channels.items():
