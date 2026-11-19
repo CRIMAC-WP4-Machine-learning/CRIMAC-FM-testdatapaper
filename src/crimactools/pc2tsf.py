@@ -818,7 +818,7 @@ def parse_default_fft_params(frequencies):
     by_frequency_defaults = fft_defaults['by_frequency']
     for f in frequencies:
         f_Hz = str(int(f))
-        if by_frequency_defaults[f]:
+        if by_frequency_defaults.get(f):
             for key, value in by_frequency_defaults[f].items():
                 fft_params[f_Hz][key] = value
     return fft_params
@@ -837,23 +837,7 @@ def parse_default_cw_values(frequencies):
     return cw_params
 
 
-def is_cw_data(ncfile_dir):
-    # only check the first nc-file in the directory
-    nc_files = [f for f in os.listdir(ncfile_dir) if f.endswith('.nc')]
-    if not nc_files:
-        return False
-
-    first_ncfile = os.path.join(ncfile_dir, nc_files[0])
-
-    # if any of the groups contain 'sv', it is cw data
-    data = xr.open_groups(first_ncfile, engine='netcdf4')
-    for grp in data.values():
-        if 'sv' in grp:
-            return True
-    return False
-
-
-def pc2tsf(trackdir: str, ncdir: str, indexdir: str, outputdir: str, channels: dict, workfiledir: str,
+def pc2tsf(trackdir: str, ncdir: str, indexdir: str | Path | None, outputdir: str, channels: dict, workfiledir: str | Path | None,
            fft_file: str | None, cw_file: str | None):
     """
     :param trackdir: directory containing the track files.
@@ -907,19 +891,11 @@ def pc2tsf(trackdir: str, ncdir: str, indexdir: str, outputdir: str, channels: d
         logger.error(f"Error reading parameters: {e}")
         raise e
 
-    ncfile_dirs = []
-    if os.path.exists(ncdir):
-        ncfile_dirs = [os.path.join(ncdir, f) for f in os.listdir(ncdir) if f.startswith('pc')]
+    for channel_suffix in channels:
+        ncfile_dir = os.path.join(ncdir, f"pc_{channel_suffix}")
+        trackfile_dir = os.path.join(trackdir, f"track_{channel_suffix}")
+        logger.info(f"Processing {ncfile_dir} with {trackfile_dir}")
 
-    track_dirs = []
-    if os.path.exists(trackdir):
-        track_dirs = [os.path.join(trackdir, f) for f in os.listdir(trackdir) if f.startswith('track')]
-
-    for ncfile_dir, trackfile_dir in zip(ncfile_dirs, track_dirs):
-        cw_data = is_cw_data(ncfile_dir)
-        logger.info(f"Processing {'cw-data ' if cw_data else 'fm_data '}{ncfile_dir} with {trackfile_dir}")
-
-        channel_suffix = os.path.basename(ncfile_dir).split('_')[1]
         # List NC files
         track_files = sorted(glob.glob(os.path.join(trackfile_dir, '*.nc')))
         nc_files = glob.glob(os.path.join(ncfile_dir, '*.nc'))
@@ -950,17 +926,13 @@ def pc2tsf(trackdir: str, ncdir: str, indexdir: str, outputdir: str, channels: d
             if len(freqs_targets) == 0:
                 logger.info(f'No tracked channels in file {trackfilename}')
                 continue  # skip file if no targets present
-            # Initialize counter for dim "i"
-            n_i = 0
-            current_file_output = xr.Dataset()
-            for i, freq in enumerate(freqs_targets):
-                fft_buffer_before = fft_params[str(freq)]['FFTbefore']
-                fft_buffer_after = fft_params[str(freq)]['FFTafter']
-                if cw_data:
-                    fft_buffer_before = 0
-                    fft_buffer_after = 0
+            products: dict[str, list[xr.Dataset]] = {"TS": [], "TSf": []}
+            for freq in freqs_targets:
                 raw_index = np.int8(np.where(freqs_raw_pc == freq)[0][0])
-                raw_pc: xr.Dataset = raw_pc_all[raw_index]
+                raw_pc = raw_pc_groups[f'/frequency_{raw_index}']
+                cw_data = 'sv' in raw_pc
+                fft_buffer_before = 0 if cw_data else fft_params[str(freq)]['FFTbefore']
+                fft_buffer_after = 0 if cw_data else fft_params[str(freq)]['FFTafter']
 
                 # Filter targets to only include the current frequency:
                 filtered_targets = targets.where(
@@ -968,22 +940,28 @@ def pc2tsf(trackdir: str, ncdir: str, indexdir: str, outputdir: str, channels: d
                     (targets['single_target_range'] < max(raw_pc['range']).values - fft_buffer_after).compute(),
                     drop=True)
 
+                if filtered_targets.sizes['i'] == 0:
+                    continue
                 ms = filtered_targets.ping_time.values.astype('datetime64[ms]')
                 filtered_targets['ping_time'] = (['i'], ms.astype('datetime64[ns]'))
-                # Filter out raw_pc to only include relevant ranges:
-                range_mask = ((raw_pc['range'] >= np.min(filtered_targets.single_target_range.values) - (fft_buffer_before * 1.02)) &
-                              (raw_pc['range'] <= np.max(filtered_targets.single_target_range.values) + (fft_buffer_after * 1.02)))
-                raw_pc_filtered = raw_pc.sel(range=range_mask)
+                # CW uses the full detection range; FM needs an FFT window around the peak.
+                raw_pc_filtered = raw_pc
+                if not cw_data:
+                    low = filtered_targets.single_target_range.values.min() - fft_buffer_before * 1.02
+                    high = filtered_targets.single_target_range.values.max() + fft_buffer_after * 1.02
+                    raw_pc_filtered = raw_pc.sel(range=slice(low, high))
 
                 # Put mask on targets from work file info
                 workfilename = trackfilename + '.work'
-                workfilepath = os.path.join(workfiledir, workfilename)
+                workfilepath = Path(workfiledir) / workfilename if workfiledir else None
                 indexfilename = trackfilename + '_index.nc'
-                indexfilepath = os.path.join(indexdir, indexfilename)
 
-                if os.path.exists(workfilepath):
+                if workfilepath is not None and workfilepath.is_file():
+                    if indexdir is None or not (Path(indexdir) / indexfilename).is_file():
+                        raise FileNotFoundError(f"Missing {indexfilename} for work file {workfilepath}")
+                    indexfilepath = str(Path(indexdir) / indexfilename)
 
-                    filtered_targets = filter_tracks_by_workfile(filtered_targets, workfilepath, indexfilepath, raw_pc['ping_time'].values,
+                    filtered_targets = filter_tracks_by_workfile(filtered_targets, str(workfilepath), indexfilepath, raw_pc['ping_time'].values,
                                                                  raw_index)
                     filtered_targets = filtered_targets.where((filtered_targets['track_deleted'] == 0).compute(),
                                                               drop=True)
@@ -1010,9 +988,9 @@ def pc2tsf(trackdir: str, ncdir: str, indexdir: str, outputdir: str, channels: d
                 if cw_data:
                     target_ts_method = cw_params[str(freq)]['target_ts_method'].lower()
                     if target_ts_method == 'peak':
-                        TS_t, r_t, theta, phi = TS_cw(raw_pc_filtered, raw_pc_attr, filtered_targets, i)
+                        TS_t, r_t, theta, phi = TS_cw(raw_pc_filtered, raw_pc_attr, filtered_targets, raw_index)
                     else:
-                        TS_t, r_t, theta, phi = TS_cw_average(raw_pc_filtered, raw_pc_attr, filtered_targets, i,
+                        TS_t, r_t, theta, phi = TS_cw_average(raw_pc_filtered, raw_pc_attr, filtered_targets, raw_index,
                                                               target_ts_method)
 
                     output_temp = xr.Dataset(
@@ -1031,14 +1009,10 @@ def pc2tsf(trackdir: str, ncdir: str, indexdir: str, outputdir: str, channels: d
 
                         },
                         coords={
-                            "i": np.arange(n_i, n_i + r_t.shape[0])
+                            "i": np.arange(r_t.shape[0])
                         }
                     )
-                    n_i += r_t.shape[0]
-                    if i == 0:
-                        current_file_output = output_temp
-                    else:
-                        current_file_output = xr.concat([current_file_output, output_temp], dim='i')
+                    products["TS"].append(output_temp)
                 else:
                     [
                         TSf_t,
@@ -1051,7 +1025,7 @@ def pc2tsf(trackdir: str, ncdir: str, indexdir: str, outputdir: str, channels: d
                     ] = TSf(raw_pc_filtered, filtered_targets, freq, FFT_params=fft_params, CTD=env_data)
 
                     # Make frequency array for all available frequencies
-                    freq_tot = construct_full_freqs(raw_pc_all, fft_params['delta_frequency'])
+                    freq_tot = construct_full_freqs([grp for grp in raw_pc_all if 'sv' not in grp], fft_params['delta_frequency'])
 
                     TSf_tot = construct_full_TSf(TSf_t, freq_tot, f_m[0])
 
@@ -1073,21 +1047,19 @@ def pc2tsf(trackdir: str, ncdir: str, indexdir: str, outputdir: str, channels: d
 
                         },
                         coords={
-                            "i": np.arange(n_i, n_i + r_t.shape[0]),
+                            "i": np.arange(r_t.shape[0]),
                             "frequency": freq_tot
                         }
                     )
-                    n_i += r_t.shape[0]
-                    if i == 0:
-                        current_file_output = output_temp
-                    else:
-                        current_file_output = xr.concat([current_file_output, output_temp], dim='i')
+                    products["TSf"].append(output_temp)
 
-            # Save to file:
-            if len(current_file_output) > 0 and current_file_output.sizes['i'] > 0:
-                filename = trackfilename + '_TSf.nc' if not cw_data else trackfilename + '_TS.nc'
-
-                folder = f'TSf_{channel_suffix}' if not cw_data else f'TS_{channel_suffix}'
+            for product, parts in products.items():
+                if not parts:
+                    continue
+                current_file_output = xr.concat(parts, dim="i")
+                current_file_output = current_file_output.assign_coords(i=np.arange(current_file_output.sizes["i"]))
+                filename = f"{trackfilename}_{product}.nc"
+                folder = f"{product}_{channel_suffix}"
                 output_fp = os.path.join(outputdir, folder, filename)
                 if not os.path.isdir(os.path.dirname(output_fp)):
                     os.makedirs(os.path.dirname(output_fp), exist_ok=True)
