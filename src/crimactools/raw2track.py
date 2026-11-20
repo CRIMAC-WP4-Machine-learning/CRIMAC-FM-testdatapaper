@@ -622,7 +622,6 @@ def track2png(_pcdir, _koronadir, channels, *, outputdir=None):
             png_path = plotdir / f'{Path(filename).stem}_track.png'
             png_path.unlink(missing_ok=True)
             fig.savefig(png_path)
-            plt.close(fig)
 
             # Release file handles before moving to the next file
             for d in data:
