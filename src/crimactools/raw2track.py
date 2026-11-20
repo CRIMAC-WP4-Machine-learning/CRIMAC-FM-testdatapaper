@@ -1,4 +1,5 @@
 # this script convert the raw data to pulse compressed data
+import ektools
 from ektools.korona_parsers import SimradTrackInfoParser, SimradTrackBorderParser
 import KoronaScript.Modules as ksm
 import KoronaScript as ks
@@ -32,22 +33,6 @@ TransducerRanges.xml contains information on the transducers in the data.
 The path of this file is passed to Korona.
 Example:
 """
-
-
-def write_via_tmp(path, write):
-    """Call write(tmp) on a temporary file next to path, then rename it to path.
-    Overwriting an existing file in place on some network shares leaves stale
-    contents behind; a rename replaces the file as a whole.
-    If path is open in another program (e.g. an image viewer) Windows refuses the
-    rename; the new contents are then kept in the temporary file."""
-    path = Path(path)
-    tmp = path.with_name(f'{path.stem}.tmp{path.suffix}')  # keep suffix, savefig infers the format from it
-    write(tmp)
-    try:
-        os.replace(tmp, path)
-    except PermissionError:
-        logger.warning(f'Could not replace {path}, it is probably open in another program. '
-                       f'New version written to {tmp}')
 
 
 def tracking_params_by_frequency(tracking_params, ping_group, frequencies, tracking_file):
@@ -326,8 +311,8 @@ def index(f):
                     raise Exception('Premature EOF, truncated RAW file?')
                 v = struct.unpack('<l', mf[position + length + 4:position + length + 8])
                 t = msg.decode('latin-1')
-                if v[0] != length: logger.warning(
-                    f'Datagram at {position}: control lenght mismatch ({length} vs {v[0]}) - endianness error or corrupt file?')
+                if v[0] != length:
+                    logger.warning(f'Datagram at {position}: length mismatch ({length} vs {v[0]})')
                 idx.append((position, t, length, mf[position + 4:position + 4 + length]))
                 position += length + 8
 
@@ -336,18 +321,25 @@ def index(f):
 
 def track2nc(_inputdir, _outputdir, channels):
     for channel in channels:
-        inputdir = str(os.path.join(_inputdir, 'track_' + channel))
-        outputdir = str(os.path.join(_outputdir, 'track_' + channel))
-
-        # get raw files
-        raw_files = [os.path.join(inputdir, f) for f in os.listdir(inputdir) if f.endswith('.raw')]
-        assert len(raw_files) > 0, f"No Korona raw files found in {inputdir}"
+        inputdir = Path(_inputdir) / f"track_{channel}"
+        outputdir = Path(_outputdir) / inputdir.name
+        raw_files = sorted(path for path in inputdir.glob("*.raw") if path.is_file())
+        if not raw_files:
+            raise ValueError(f"No *.raw files in {inputdir}")
+        outputdir.mkdir(parents=True, exist_ok=True)
 
         for raw_file in raw_files:
             t_infos = []
             t_borders = []
-            # The frequencies are needed to convert the channel index to frequency. Is there an easier way to read them?
-            transducer_frequencies = np.array(channels[channel]['transducer_frequency'], dtype=int)
+            save_path = outputdir / raw_file.with_suffix(".nc").name
+            header = ektools.index(raw_file, maxcount=1)
+            if not header or header[0][1] not in ("CON0", "XML0"):
+                raise ValueError(f"Missing RAW configuration in {raw_file}")
+            config = ektools.parse(header[0][3]).get("configuration")
+            if not config:
+                raise ValueError(f"Missing channel configuration in {raw_file}")
+            frequency_key = "frequency" if header[0][1] == "CON0" else "transducer_frequency"
+            frequencies = [int(item[frequency_key]) for item in config.values()]
 
             # Extract data from korona file
             for pos, typ, length, msg in index(raw_file):
@@ -374,9 +366,7 @@ def track2nc(_inputdir, _outputdir, channels):
                     coords={"i": (['i'], [])}
                 )
                 # Save xarray to netcdf
-                save_path = os.path.join(outputdir, os.path.split(
-                    raw_file)[1].replace('.raw', '.nc'))
-                ds.to_netcdf(os.path.join(outputdir, save_path))
+                ds.to_netcdf(save_path)
                 continue
 
             # Retrieve tracking border datagrams and add to polars dataframe
@@ -403,29 +393,13 @@ def track2nc(_inputdir, _outputdir, channels):
             df_tracking_border = df_tracking_border.with_columns(pl.col(
                 "ping_time").dt.cast_time_unit('ns'))
 
-            # Map each track's channel code to its transducer frequency by rank.
-            # The 'channel' field of the TBR0/TNF0 datagram is the channel the
-            # track was detected on, but its numeric value may not match the ping
-            # group's channel numbers (Korona may renumber channels after
-            # ChannelRemoval). We therefore map the distinct codes, in ascending
-            # order, onto this ping group's transducers, which are stored in
-            # channel order in 'transducer_frequency'.
-            transducer_freq_list = transducer_frequencies.tolist()
-            channel_codes = df_tracking_border['frequency_index'].to_numpy().tolist()
-            unique_codes = sorted(set(channel_codes))
-            if len(unique_codes) > len(transducer_freq_list):
-                raise ValueError(
-                    f"Track data for ping group '{channel}' has {len(unique_codes)} "
-                    f"distinct channel codes {unique_codes} but only "
-                    f"{len(transducer_freq_list)} transducers "
-                    f"(frequencies {transducer_freq_list})."
-                )
-            code_to_freq = {code: transducer_freq_list[rank]
-                            for rank, code in enumerate(unique_codes)}
-
+            # Korona numbers the retained channels from 1 in configuration order.
+            codes = df_tracking_border['frequency_index'].to_list()
+            if any(code < 1 or code > len(frequencies) for code in codes):
+                raise ValueError(f"Track channel outside the configuration in {raw_file}")
             df_tracking_border = df_tracking_border.with_columns(
-                pl.Series(name='frequency',
-                          values=[code_to_freq[c] for c in channel_codes]))
+                pl.Series("frequency", [frequencies[code - 1] for code in codes], dtype=pl.Int64)
+            )
             logger.info(raw_file)
             df_tracking_border = drop_range_low_varying_targets(df_tracking_border, 0.1, 5)
             # Add the number of targets in each ping
@@ -453,8 +427,7 @@ def track2nc(_inputdir, _outputdir, channels):
             )
 
             # Save xarray to netcdf
-            save_path = os.path.join(outputdir, os.path.split(raw_file)[1].replace('.raw', '.nc'))
-            ds.to_netcdf(os.path.join(outputdir, save_path))
+            ds.to_netcdf(save_path)
 
 
 def drop_range_low_varying_targets(df_tracking_border: pl.DataFrame, range_delta=0.05, min_length=5) -> pl.DataFrame:
@@ -482,7 +455,7 @@ def _nearest_index(sorted_coord, targets):
     return idx
 
 
-def track2png(_pcdir, _koronadir, channels):
+def track2png(_pcdir, _koronadir, channels, *, outputdir=None):
     # List NC files
     for channel in channels:
         pcdir = str(os.path.join(_pcdir, 'pc_' + channel))
@@ -496,7 +469,10 @@ def track2png(_pcdir, _koronadir, channels):
             filename = os.path.split(ncfile)[1]
 
             # Read track xarray
-            ds_track = xr.open_dataset(os.path.join(koronadir, filename.replace('.nc', '-korona.nc')))
+            track_file = Path(koronadir) / f'{Path(filename).stem}-korona.nc'
+            if not track_file.is_file():
+                track_file = Path(koronadir) / filename
+            ds_track = xr.open_dataset(track_file)
             if ds_track['i'].shape[0] == 0:
                 logger.warning(f"No tracks found in {filename}")
                 ds_track.close()
@@ -640,8 +616,12 @@ def track2png(_pcdir, _koronadir, channels):
                 # track_mask.plot.contour(levels=[0, 1], colors='white', alpha=1.0, linewidths=1, linestyles='solid', ax=axs[freq_idx])
 
             # save figure
-            _f = os.path.join(koronadir, filename.replace('.nc', '_track.png'))
-            write_via_tmp(_f, plt.savefig)
+            plotdir = Path(outputdir or _koronadir) / f'track_{channel}'
+            plotdir.mkdir(parents=True, exist_ok=True)
+
+            png_path = plotdir / f'{Path(filename).stem}_track.png'
+            png_path.unlink(missing_ok=True)
+            fig.savefig(png_path)
             plt.close(fig)
 
             # Release file handles before moving to the next file
