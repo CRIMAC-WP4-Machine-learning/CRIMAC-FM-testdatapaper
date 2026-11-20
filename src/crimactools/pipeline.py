@@ -9,7 +9,17 @@ setup_logging(log_file="crimactools.log")
 
 def run_task(task, description, input_key, output_key, *, configs=(), inputs=None):
     """Resolve the dataset layout or explicit folders before calling a processing task."""
-    parser = argparse.ArgumentParser(description=description)
+    inputs = inputs or {}
+    required_inputs = {"pc_input", "tracks_input"}
+    folder_args = ["--input DIR", "--output DIR"]
+    for name in inputs:
+        option = "--" + name.replace("_", "-") + " DIR"
+        folder_args.append(option if name in required_inputs else f"[{option}]")
+    parser = argparse.ArgumentParser(
+        description=description,
+        usage="%(prog)s --dataset-id ID --datadir DIR [options]\n"
+        "       %(prog)s " + " ".join(folder_args) + " [options]",
+    )
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--dataset-id", help="Test dataset ID (use with --datadir)")
     source.add_argument(
@@ -19,10 +29,12 @@ def run_task(task, description, input_key, output_key, *, configs=(), inputs=Non
         "--datadir", type=Path, help="Parent folder of the test dataset"
     )
     parser.add_argument("-o", "--output", type=Path, help="Destination for this step")
-    parser.add_argument("--dry-run", action="store_true")
+    shared = parser.add_argument_group("Options for either mode")
+    shared.add_argument("--dry-run", action="store_true")
     for name in configs:
-        parser.add_argument("--" + name, help="Path to " + name.replace("_", " "))
-    inputs = inputs or {}
+        shared.add_argument(
+            "--" + name, metavar="FILE", help="Path to " + name.replace("_", " ")
+        )
     for name in inputs:
         parser.add_argument(
             "--" + name.replace("_", "-"),
@@ -49,7 +61,7 @@ def run_task(task, description, input_key, output_key, *, configs=(), inputs=Non
             parser.error("--input requires --output and cannot be used with --datadir")
         indir, outdir = args.input, args.output
         for name, path in extra.items():
-            if path is None and name in ("pc_input", "tracks_input"):
+            if path is None and name in required_inputs:
                 parser.error("--input requires --" + name.replace("_", "-"))
             if path is not None and not path.is_dir():
                 parser.error(f"input folder does not exist: {path}")
