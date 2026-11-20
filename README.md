@@ -121,8 +121,9 @@ uv run pytest
 The integration tests provide an end-to-end smoke test of the data processing pipeline. For each dataset currently available from the data repository, the tests:
 
 1. download and unpack the dataset with `get` to the pytest `/tmp` folder,
-2. convert the raw EK80 data to pulse-compressed NetCDF with `raw2pc`, and
-3. generate echogram images with `pc2png`.
+2. convert the raw EK80 data to pulse-compressed NetCDF with `raw2pc` and generate echograms with `pc2png`,
+3. detect tracks with `raw2tracks` and convert the tracked RAW files to NetCDF with `tracks2nc`, and
+4. overlay detected tracks with `tracks2png` and calculate target strength with `pc2tsf` where usable targets are present.
 
 The integration tests also verify that requesting a non-existing dataset returns an error.
 
@@ -132,7 +133,7 @@ Run the integration tests for all test data sets:
 uv run pytest -m integration
 ```
 
-The integration tests require network access and may approximately 3 hours, as all the test datasets are downloaded and processed. As a firste step, run instead a single integration test on one test data set:
+Downloading and processing all datasets requires network access and can take several hours. To exercise the pipeline on a single dataset, run
 
 ```bash
 uv run pytest "tests/integration/test_smoke.py::test_full_pipeline[T2019001]" -vv
