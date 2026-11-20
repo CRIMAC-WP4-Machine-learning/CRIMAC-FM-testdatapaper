@@ -34,6 +34,57 @@ Example:
 """
 
 
+def write_via_tmp(path, write):
+    """Call write(tmp) on a temporary file next to path, then rename it to path.
+    Overwriting an existing file in place on some network shares leaves stale
+    contents behind; a rename replaces the file as a whole.
+    If path is open in another program (e.g. an image viewer) Windows refuses the
+    rename; the new contents are then kept in the temporary file."""
+    path = Path(path)
+    tmp = path.with_name(f'{path.stem}.tmp{path.suffix}')  # keep suffix, savefig infers the format from it
+    write(tmp)
+    try:
+        os.replace(tmp, path)
+    except PermissionError:
+        logger.warning(f'Could not replace {path}, it is probably open in another program. '
+                       f'New version written to {tmp}')
+
+
+def tracking_params_by_frequency(tracking_params, ping_group, frequencies, tracking_file):
+    """Tracking settings for each channel of a ping group, looked up by frequency.
+
+    TrackingParams holds one list per parameter, with one entry per channel labelled by
+    the 'kHz' list. A channel gets the entry with its frequency, so the file may cover
+    more or other channels than the data (e.g. a file made for another dataset). The ping
+    group's own entries are searched first, then those of the other ping groups. If a
+    frequency occurs several times in the ping group, the k-th channel with that frequency
+    gets the k-th matching entry, or the last one if there are fewer."""
+    entries = {}  # kHz -> [(ping group, index)], own ping group first
+    for group in [ping_group] + [g for g in tracking_params if g != ping_group]:
+        for index, khz in enumerate(tracking_params.get(group, {}).get('kHz', [])):
+            entries.setdefault(str(int(float(khz))), []).append((group, index))
+
+    selected = []
+    occurrence = {}
+    for frequency in frequencies:
+        khz = str(int(frequency) // 1000)
+        if khz not in entries:
+            raise ValueError(f'{tracking_file}: no tracking parameters for {khz} kHz (ping group {ping_group}); '
+                             f'the file has kHz {sorted(entries, key=int)}')
+        k = occurrence.get(khz, 0)
+        occurrence[khz] = k + 1
+        group, index = entries[khz][min(k, len(entries[khz]) - 1)]
+        params = tracking_params[group]
+        too_short = [key for key, values in params.items() if len(values) <= index]
+        if too_short:
+            raise ValueError(f'{tracking_file}: parameters {too_short} in ping group {group} '
+                             f'have no value for entry {index} ({khz} kHz)')
+        if group != ping_group:
+            logger.info(f'Ping group {ping_group}, {khz} kHz: using tracking parameters of ping group {group}')
+        selected.append({key: values[index] for key, values in params.items()})
+    return selected
+
+
 def configuration(configdir):
     pathConfig: dict[str, str] = {
         'TransducerRanges' : os.path.join(configdir, 'TransducerRanges', 'TransducerRanges.xml'),
@@ -226,7 +277,13 @@ def raw2track(inputdir, outputdir, channels, tracking_file, transducer_ranges_fi
         comment = 'Processing pc_' + channel + ' consisting of ' + str(name)
         logger.info(comment)
 
-        _tracking_params = tracking_params[channel]
+        try:
+            channel_tracking_params = tracking_params_by_frequency(
+                tracking_params, channel, channels[channel]['transducer_frequency'],
+                tracking_file or path_config['TrackingParams'])
+        except ValueError as e:
+            logger.error(e)
+            raise
 
         # Instantiate the class
         ksi = ks.KoronaScript(TransducerRanges=path_config['TransducerRanges'])
@@ -243,14 +300,9 @@ def raw2track(inputdir, outputdir, channels, tracking_file, transducer_ranges_fi
 
         ksi.add(ksm.EmptyPingRemoval())
 
-        # Loop over channels in ping group. How can I specify the channel withoiut kHz info???
-        for i, _transducer_frequency in enumerate(channels[channel]['transducer_frequency']):
-            # Reduce trackingparam dict to only contain the ii-th value in each key-value pair
-            reduced_tracking_params = {w: m for w, m in
-                                       zip(list(_tracking_params.keys()),
-                                           list(list(zip(*list(_tracking_params.values())))[i]))}
-            # add tracking module
-            ksi.add(ksm.Tracking(**reduced_tracking_params))
+        # One tracking module per channel in the ping group, with the settings for its frequency
+        for params in channel_tracking_params:
+            ksi.add(ksm.Tracking(**params))
 
         # Run the script:
         ksi.write()
@@ -589,7 +641,7 @@ def track2png(_pcdir, _koronadir, channels):
 
             # save figure
             _f = os.path.join(koronadir, filename.replace('.nc', '_track.png'))
-            plt.savefig(_f)
+            write_via_tmp(_f, plt.savefig)
             plt.close(fig)
 
             # Release file handles before moving to the next file
