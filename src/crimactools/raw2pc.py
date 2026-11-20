@@ -95,10 +95,12 @@ def raw2meta(inputdir):
 
     """
 
-    files = [p for p in inputdir.iterdir() if p.is_file() and p.suffix == ".raw"]
+    files = sorted(p for p in inputdir.glob("*.raw") if p.is_file())
+    if not files:
+        raise ValueError(f"No RAW files in {inputdir}")
 
     # Read the index from the first raw file using ektools
-    ix = E.index(files[0])
+    ix = E.index(files[0], maxcount=2)
 
     # Configuration data gram
     con_par = E.parse(ix[0][3])["configuration"]  # Configuration data gram
@@ -250,7 +252,7 @@ def plot_echogram_compressed_time(
     return im
 
 
-def pc2png(inputdir: Path, channels: dict, dataset_range=None, debug=False):
+def pc2png(inputdir: Path, channels, dataset_range=None, debug=False, *, outputdir=None):
     """
     Generate PC and sv plots. If dataset_range=(start, stop) provided, pass as ylim.
     """
@@ -274,6 +276,8 @@ def pc2png(inputdir: Path, channels: dict, dataset_range=None, debug=False):
             logger.warning(f"No .nc files in {ncdir}, skipping.")
             continue
 
+        plotdir = (outputdir or inputdir) / ncdir.name
+        plotdir.mkdir(parents=True, exist_ok=True)
         all_groups = set()
         for ncfile in ncfiles:
             try:
@@ -357,7 +361,7 @@ def pc2png(inputdir: Path, channels: dict, dataset_range=None, debug=False):
                     ax.set_xlabel("Ping Time")
 
                     out_png = os.path.join(
-                        ncdir, _data.attrs["channel_id"].replace(" ", "_") + "_pc.png"
+                        plotdir, _data.attrs["channel_id"].replace(" ", "_") + "_pc.png"
                     )
 
                 # -------- sv --------
@@ -393,7 +397,7 @@ def pc2png(inputdir: Path, channels: dict, dataset_range=None, debug=False):
                     else:
                         ax.invert_yaxis()
 
-                    out_png = ncdir / Path(
+                    out_png = plotdir / Path(
                         _data.attrs["channel_id"].replace(" ", "_") + "_sv.png"
                     )
 

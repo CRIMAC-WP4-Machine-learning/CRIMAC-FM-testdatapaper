@@ -1,7 +1,7 @@
 import sys
 import logging
 from pathlib import Path
-import yaml
+from netCDF4 import Dataset
 import requests
 import hashlib
 from bs4 import BeautifulSoup
@@ -39,6 +39,9 @@ def folder_structure(datadir: Path, dataset_id: str):
     data["lsss"] = datadir / Path(dataset_id) / Path("ACOUSTIC/LSSS/")
     data["korona"] = datadir / Path(dataset_id) / Path("ACOUSTIC/LSSS/KORONA/")
     data["acoustic"] = datadir / Path(dataset_id) / Path("ACOUSTIC/")
+    data["ts"] = data["acoustic"] / "TS"
+    data["index"] = data["gridded"] / "index"
+    data["work"] = data["lsss"] / "work"
     return data
 
 
@@ -265,86 +268,78 @@ def get_dataset_task(
         verify_checksums(_datadir, dataset_id)
 
 
-def raw2pc_task(
-    datadir: str,
-    dataset_id: str,
-    dry_run: bool = False,
-):
-    _datadir = Path(datadir)
-    check_datadir(_datadir)
+def group_ids(folder: Path, prefix: str) -> list[str]:
+    groups = sorted(
+        p.name.removeprefix(prefix) for p in folder.glob(prefix + "*") if p.is_dir()
+    )
+    if not groups:
+        raise ValueError(f"No {prefix}* folders in {folder}")
+    return groups
 
-    logger.info(f"#### RAW2PC for {dataset_id} ####")
 
-    data = folder_structure(_datadir, dataset_id)
-    indir = data["ekdir"]
-    outdir = data["gridded"]
-    logger.info(f"Processing raw files from {indir}")
+def paired_groups(pc_root: Path, tracks_root: Path) -> list[str]:
+    pc = group_ids(pc_root, "pc_")
+    tracks = group_ids(tracks_root, "track_")
+    if pc != tracks:
+        raise ValueError(
+            f"Ping groups differ: {pc_root} contains {pc}, {tracks_root} contains {tracks}"
+        )
+    return pc
 
-    channels, con, ind = raw2meta(indir)
-    logger.info(f"Channels:\n{yaml.dump(channels)}")
 
-    logger.info(f"Processing raw files to nc files in {outdir}")
+def raw2pc_task(indir, outdir, dry_run=False):
+    channels, _, _ = raw2meta(indir)
     raw2pc(indir, outdir, channels, dry_run)
 
 
-def pc2png_task(
-    datadir: str,
-    dataset_id: str,
-    dry_run: bool = False,
-):
-    _datadir = Path(datadir)
-    check_datadir(_datadir)
-
-    data = folder_structure(_datadir, dataset_id)
-    logger.info(f"#### PC2PNG for {dataset_id} ####")
-    channels, con, ind = raw2meta(data["ekdir"])
-    pc2png(data["gridded"], channels)
-
-
 def raw2tracks_task(
-        datadir: Path,
-        dataset_id: str,
-        dry_run: bool = False,
-        tracking_config: str | None = None,
-        ranges_config: str | None = None
+    indir, outdir, dry_run=False, tracking_config=None, ranges_config=None
 ):
-    data = folder_structure(datadir, dataset_id)
-    logger.info(f"#### RAW2TRACKS for {dataset_id} ####")
-    channels, con, ind = raw2meta(data["ekdir"])
-    raw2track(data["ekdir"], data["korona"], channels, tracking_config, ranges_config)
+    channels, _, _ = raw2meta(indir)
+    raw2track(indir, outdir, channels, tracking_config, ranges_config)
 
 
-def tracks2nc_task(
-        datadir: Path,
-        dataset_id: str,
-        dry_run: bool = False,
-):
-    data = folder_structure(datadir, dataset_id)
-    logger.info(f"#### TRACKS2NC for {dataset_id} ####")
-    channels, con, ind = raw2meta(data["ekdir"])
-    track2nc(data["korona"], data["korona"], channels)
+def pc2png_task(indir, outdir, dry_run=False):
+    pc2png(indir, group_ids(indir, "pc_"), outputdir=outdir)
 
 
-def tracks2png_task(
-        datadir: Path,
-        dataset_id: str,
-        dry_run: bool = False,
-):
-    data = folder_structure(datadir, dataset_id)
-    logger.info(f"#### TRACKS2PNG for {dataset_id} ####")
-    channels, con, ind = raw2meta(data["ekdir"])
-    track2png(data["gridded"], data["korona"], channels)
+def tracks2nc_task(indir, outdir, dry_run=False):
+    track2nc(indir, outdir, group_ids(indir, "track_"))
+
+
+def tracks2png_task(indir, outdir, *, pc_input, dry_run=False):
+    groups = paired_groups(pc_input, indir)
+    track2png(pc_input, indir, groups, outputdir=outdir)
 
 
 def pc2tsf_task(
-        datadir: Path,
-        dataset_id: str,
-        dry_run: bool = False,
-        fft_config: str | None = None,
-        cw_config: str | None = None,
+    indir,
+    outdir,
+    *,
+    tracks_input,
+    work_input=None,
+    index_input=None,
+    dry_run=False,
+    fft_config=None,
+    cw_config=None,
 ):
-    data = folder_structure(datadir, dataset_id)
-    logger.info(f'#### PC2Tsf for {dataset_id} ####')
-    channels, con, ind = raw2meta(data["ekdir"])
-    pc2tsf(data["korona"], data['gridded'], data['gridded'] / Path('index'), data['acoustic'] / Path('TS'), channels,
-           data['lsss'] / Path('work'), fft_config, cw_config)
+    channels = {}
+    for group in paired_groups(indir, tracks_input):
+        pc_files = sorted((indir / f"pc_{group}").glob("*.nc"))
+        if not pc_files:
+            raise ValueError(f"No PC NetCDF files in {indir / f'pc_{group}'}")
+        frequencies = set()
+        for path in pc_files:
+            with Dataset(path) as ds:
+                frequencies.update(int(f) for f in ds["frequency"][:].flat)
+        channels[group] = {"transducer_frequency": frequencies}
+    pc2tsf(
+        tracks_input,
+        indir,
+        index_input,
+        outdir,
+        channels,
+        work_input,
+        fft_config,
+        cw_config,
+    )
