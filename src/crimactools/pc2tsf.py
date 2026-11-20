@@ -374,10 +374,26 @@ def process_target_strength(y_pc_t_n, range_t, temp, sal, c_sound, f_m, n_dft, i
     return TS
 
 
+def match_pings(ping_time, target_ping_time, tolerance=np.timedelta64(1, 'ms')):
+    """Index of the nearest ping for each target (in target order), and a mask of the
+    targets that have a ping within tolerance."""
+    ping_time = np.asarray(ping_time)
+    target_ping_time = np.asarray(target_ping_time)
+    order = np.argsort(ping_time, kind='stable')
+    sorted_time = ping_time[order]
+    if len(sorted_time) == 1:
+        nearest = np.zeros(len(target_ping_time), dtype=int)
+    else:
+        idx = np.clip(np.searchsorted(sorted_time, target_ping_time), 1, len(sorted_time) - 1)
+        left, right = sorted_time[idx - 1], sorted_time[idx]
+        nearest = np.where(np.abs(target_ping_time - left) <= np.abs(right - target_ping_time), idx - 1, idx)
+    matched = np.abs(sorted_time[nearest] - target_ping_time) <= tolerance
+    return order[nearest], matched
+
+
 def TS_cw(data, data_attributes, tracks, freq_index):
     sv = data['sv']
     data_range = data['range']
-    ping_time = data['ping_time']
     sample_interval_meters = data_range[1] - data_range[0]
     sound_speed = data_attributes['sound_speed']
     equivalent_beam_angle = data_attributes['equivalent_beam_angle'][freq_index]
@@ -392,21 +408,20 @@ def TS_cw(data, data_attributes, tracks, freq_index):
     # r_i_start = np.round((tracks['single_target_start_range'] - data_range[0]) / sample_interval_meters).astype(int)
     # r_i_stop = np.round((tracks['single_target_stop_range'] - data_range[0]) / sample_interval_meters).astype(int)
 
-    tolerance = np.timedelta64(1, 'ms')  # Account for different rounding of time
-    # Find all valid ping indices at once
-    time_differences = np.abs(ping_time - tracks.ping_time)
-    valid_pings = np.where(time_differences <= tolerance)[0]
+    # One ping per target, in target order (set by match_pings in pc2tsf)
+    pings = xr.DataArray(tracks['ping_index'].values, dims='i')
+    ranges = xr.DataArray(r_i_target.values, dims='i')
 
     # compute TS based on sv
     r_t = tracks['single_target_range']
-    tvg_range = r_t - tvg_range_correction
+    tvg_range = r_t - tvg_range_correction.isel(ping_time=pings)
     logr = 20 * np.log10(tvg_range)
-    ts = (10 * np.log10(sv.isel(ping_time=xr.DataArray(valid_pings, dims='i'), range=xr.DataArray(r_i_target, dims='i'))) +
-          logr.isel(ping_time=xr.DataArray(valid_pings, dims='i')) +
-          svToTsConstant.isel(ping_time=xr.DataArray(valid_pings, dims='i')))
+    ts = (10 * np.log10(sv.isel(ping_time=pings, range=ranges)) +
+          logr +
+          svToTsConstant.isel(ping_time=pings))
 
-    theta = data['angle_alongship'].isel(ping_time=xr.DataArray(valid_pings, dims='i'), range=xr.DataArray(r_i_target, dims='i'))
-    phi = data['angle_athwartship'].isel(ping_time=xr.DataArray(valid_pings, dims='i'), range=xr.DataArray(r_i_target, dims='i'))
+    theta = data['angle_alongship'].isel(ping_time=pings, range=ranges)
+    phi = data['angle_athwartship'].isel(ping_time=pings, range=ranges)
 
     return ts, r_t, theta, phi
 
@@ -422,7 +437,6 @@ def TS_cw_average(data, data_attributes, tracks, freq_index, method: str = 'mean
     """
     sv = data['sv']
     data_range = data['range']
-    ping_time = data['ping_time']
     n_range = data_range.size
     sample_interval_meters = data_range[1] - data_range[0]
     sound_speed = data_attributes['sound_speed']
@@ -437,11 +451,8 @@ def TS_cw_average(data, data_attributes, tracks, freq_index, method: str = 'mean
     r_i_start = np.round((tracks['single_target_start_range'] - data_range[0]) / sample_interval_meters).astype(int).values
     r_i_stop = np.round((tracks['single_target_stop_range'] - data_range[0]) / sample_interval_meters).astype(int).values
 
-    tolerance = np.timedelta64(1, 'ms')  # Account for different rounding of time
-    # Find all valid ping indices at once
-    time_differences = np.abs(ping_time - tracks.ping_time)
-    valid_pings = np.where(time_differences <= tolerance)[0]
-    pings = xr.DataArray(valid_pings, dims='i')
+    # One ping per target, in target order (set by match_pings in pc2tsf)
+    pings = xr.DataArray(tracks['ping_index'].values, dims='i')
 
     # The windows have different lengths per target. Pad them all to the longest window, giving an
     # (i, w) index block that is gathered in one vectorized isel, and mask out the padding.
@@ -623,16 +634,12 @@ def TSf(
     )
     g0_m_interp = np.power(10, dB_G0_interp / 10)
 
-    # Loop through all pings
-    tolerance = np.timedelta64(1, 'ms')  # Account for different rounding of time
     # Pre-allocate arrays for all results
     n_tracks = len(track_ping_time)
     freqs = [f_m for _ in range(n_tracks)]
 
-    # Find all valid ping indices at once
-    time_differences = np.abs(ping_time[:, None] - track_ping_time)
-    valid_pings = np.where(time_differences <= tolerance)[0]
-    # valid_tracks = np.where(time_differences <= tolerance)[1]
+    # One ping per target, in target order (set by match_pings in pc2tsf)
+    valid_pings = tracks['ping_index'].values
 
     idx_peak_p_rx = np.round((r_t - r_n[0]) / sample_interval_meters).astype(int)
     theta_t = theta_n[valid_pings, idx_peak_p_rx]
@@ -1006,6 +1013,17 @@ def pc2tsf(trackdir: str, ncdir: str, indexdir: str, outputdir: str, channels: d
                     logger.info('No targets left after filtering')
                     # skip frequency if no targets present
                     continue
+
+                # Nearest ping for each target; targets without a ping within 1 ms are left out
+                ping_index, matched = match_pings(raw_pc['ping_time'].values, filtered_targets['ping_time'].values)
+                if not matched.all():
+                    logger.warning(f'{trackfilename}, {freq} Hz: {(~matched).sum()} of {len(matched)} targets have '
+                                   f'no ping within 1 ms in the pulse compressed data, left out')
+                    filtered_targets = filtered_targets.isel(i=matched)
+                    ping_index = ping_index[matched]
+                    if len(filtered_targets.i) == 0:
+                        continue
+                filtered_targets['ping_index'] = ('i', ping_index)
 
                 if cw_data:
                     target_ts_method = cw_params[str(freq)]['target_ts_method'].lower()
