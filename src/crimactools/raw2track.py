@@ -620,7 +620,13 @@ def track2png(_pcdir, _koronadir, channels, *, outputdir=None):
             plotdir.mkdir(parents=True, exist_ok=True)
 
             png_path = plotdir / f'{Path(filename).stem}_track.png'
-            png_path.unlink(missing_ok=True)
+            try:
+                png_path.unlink(missing_ok=True)
+            except PermissionError:
+                tmp = png_path.with_name(f'{png_path.stem}.tmp{png_path.suffix}')  # keep suffix, savefig infers the format from it
+                logger.warning(f'Could not delete {png_path}, it is probably open in another program. '
+                               f'New version written to {tmp}')
+                png_path = tmp
             fig.savefig(png_path)
 
             # Release file handles before moving to the next file
