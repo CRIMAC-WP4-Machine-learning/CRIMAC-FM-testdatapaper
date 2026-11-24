@@ -3,7 +3,7 @@ name = "crimactools"
 version = "0.1.0"
 description = ""
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = "==3.12.*"
 dependencies = [
     "bs4>=0.0.2",
     "dask>=2026.1.1",
